@@ -22,10 +22,10 @@ services:
 
         depends_on:
             - nsqlookupd
-        # ports:
-        #     # Messages need to be send to this port ?!
-        #     - "4150:4150" 
-        #     - "4151:4151"
+        ports:
+            # Messages need to be send to this port ?!
+            - "4150:4150" 
+            - "4151:4151"
         # network_mode: host
         # deploy:
         #     replicas: 1
