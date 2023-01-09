@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+
+    nsqlookupd:
+        image: nsqio/nsq
+        command: /nsqlookupd
+        ports:
+            # Consumers need to suscribe to this port?!
+            - "4160:4160"
+            - "4161:4161"
+
+
+    # So if doing a final deploy change the command, command out ports and network modes.
+    # When running in "network_mode: host" everytjhing is available via localhost.
+    # This is needed because how nsqd and lookup interact. The lookup returns the docker internal IP.
+    # As a result Client cannot connect.
+    nsqd:
+        image: nsqio/nsq
+        # command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
+        command: /nsqd --lookupd-tcp-address=127.0.0.1:4160
+
+        depends_on:
+            - nsqlookupd
+        # ports:
+        #     # Messages need to be send to this port ?!
+        #     - "4150:4150" 
+        #     - "4151:4151"
+        network_mode: host
+        # deploy:
+        #     replicas: 1
+
+
+    nsqadmin:
+        image: nsqio/nsq
+        # command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+        command: /nsqadmin --lookupd-http-address=127.0.0.1:4161
+
+        depends_on:
+            - nsqlookupd  
+        # ports:
+        #     - "4171:4171"
+        network_mode: host
+
+
+    simpleservergo:
+        build: ./backend
+
+        ports: 
+            - "8080:8080"
+        depends_on:
+            - postgresDB
+        environment:
+            - DATABASE_URL=postgres://postgres:postgres@postgresDB:5432
+            - CACHE_URL=
+
+
+    postgresDB:
+        image: postgres:15.1-alpine
+        restart: always
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+        ports:
+            - '5432:5432'
+        volumes:
+            - db:/var/lib/postgresql/data
+
+
+
+    redisCache:
+        image: redis:4.0-alpine
+        restart: always
+        ports:
+            - '6379:6379'
+        # command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
+        volumes: 
+            - cache:/data
+
+
+    client:
+        build : ./frontend
+
+        depends_on:
+            - simpleservergo
+        environment:
+            - BACKEND_LINK=simpleservergo
+
+volumes:
+    db:
+        driver: local
+    cache:
+        driver: local
