@@ -6,7 +6,7 @@ services:
         image: nsqio/nsq
         command: /nsqlookupd
         ports:
-            # Consumers need to suscribe to this port?!
+            # Consumers need to suscribe to this port!
             - "4160:4160"
             - "4161:4161"
 
@@ -17,8 +17,8 @@ services:
     # As a result Client cannot connect.
     nsqd:
         image: nsqio/nsq
-        # command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
-        command: /nsqd --lookupd-tcp-address=127.0.0.1:4160
+        command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
+        # command: /nsqd --lookupd-tcp-address=127.0.0.1:4160
 
         depends_on:
             - nsqlookupd
@@ -26,33 +26,63 @@ services:
         #     # Messages need to be send to this port ?!
         #     - "4150:4150" 
         #     - "4151:4151"
-        network_mode: host
+        # network_mode: host
         # deploy:
         #     replicas: 1
 
 
     nsqadmin:
         image: nsqio/nsq
-        # command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
-        command: /nsqadmin --lookupd-http-address=127.0.0.1:4161
+        command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+        # command: /nsqadmin --lookupd-http-address=127.0.0.1:4161
 
         depends_on:
             - nsqlookupd  
-        # ports:
-        #     - "4171:4171"
-        network_mode: host
+        ports:
+            - "4171:4171"
+        # network_mode: host
 
 
-    simpleservergo:
+    gobackend:
         build: ./backend
 
         ports: 
             - "8080:8080"
         depends_on:
             - postgresDB
+            - redisCache
+            - nsqd
         environment:
             - DATABASE_URL=postgres://postgres:postgres@postgresDB:5432
-            - CACHE_URL=
+            - CACHE_URL=redisCache
+            - NSQ_DEMON=nsqd
+
+    # Simple Consumer
+    nsqconsumer_links:
+        build: ./nsqconsumer
+        depends_on:
+            - postgresDB
+            - redisCache
+            - nsqlookupd
+        environment:
+            - NSQ_LOOKUP=nsqlookupd
+            - NSQ_TOPIC=default
+            - NSQ_CHAN=links
+        deploy:
+            replicas: 2
+    # Same as _links but different Channel
+    nsqconsumer_rechts:
+        build: ./nsqconsumer
+        depends_on:
+            - postgresDB
+            - redisCache
+            - nsqlookupd
+        environment:
+            - NSQ_LOOKUP=nsqlookupd
+            - NSQ_TOPIC=default
+            - NSQ_CHAN=rechts
+        deploy:
+            replicas: 2
 
 
     postgresDB:
@@ -64,8 +94,8 @@ services:
         ports:
             - '5432:5432'
         volumes:
+            - ./db.sql:/docker-entrypoint-initdb.d/db.sql
             - db:/var/lib/postgresql/data
-
 
 
     redisCache:
@@ -76,15 +106,6 @@ services:
         # command: redis-server --save 20 1 --loglevel warning --requirepass eYVX7EwVmmxKPCDmwMtyKVge8oLd2t81
         volumes: 
             - cache:/data
-
-
-    client:
-        build : ./frontend
-
-        depends_on:
-            - simpleservergo
-        environment:
-            - BACKEND_LINK=simpleservergo
 
 volumes:
     db:

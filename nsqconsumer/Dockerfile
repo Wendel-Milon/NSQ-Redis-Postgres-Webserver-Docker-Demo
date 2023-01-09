@@ -5,14 +5,16 @@ WORKDIR /usr/games
 
 COPY go.mod ./
 
-# COPY go.sum ./ 
+COPY go.sum ./ 
 
 RUN go mod download
 
 COPY *.go ./
 
-RUN go build
+RUN go build -o nsqconsumer
+
+EXPOSE 8080
 
 # ENV DATABASE_URL="postgresql://postgres:postgres@db:5432"
 
-CMD [ "./client" ]
+CMD [ "./nsqconsumer" ]
