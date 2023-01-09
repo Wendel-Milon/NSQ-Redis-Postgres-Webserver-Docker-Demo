@@ -13,21 +13,25 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/nsqio/go-nsq"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var CacheURL = os.Getenv("CACHE_URL")
 var PgURL = os.Getenv("DATABASE_URL")
+var NSQD = os.Getenv("NSQ_DEMON")
 
 type Server struct {
 	redis *redis.Client
 	pg    *pgx.Conn
+	nsq   *nsq.Producer
 }
 
+// TODO probably not the best idea to make this a global.
+// Maybe inject into Handlers seems more nice....
 var server Server
 
 func SetupServer() error {
-	// server := Server{}
 
 	/************************ REDIS ***************************/
 
@@ -54,8 +58,7 @@ func SetupServer() error {
 
 	/************************** POSTGRES ***********************/
 
-	conn, err := pgx.Connect(context.Background(),
-		PgURL)
+	conn, err := pgx.Connect(context.Background(), PgURL)
 	if err != nil {
 		return fmt.Errorf("unable to connect to database: %v", err)
 	}
@@ -63,8 +66,19 @@ func SetupServer() error {
 
 	log.Println("Successfully connected to Postgres")
 
-	return nil
+	/************************** NSQ **********************************/
 
+	config := nsq.NewConfig()
+	producer, err := nsq.NewProducer(fmt.Sprintf("%s:4150", NSQD), config)
+	if err != nil {
+		return fmt.Errorf("unable to connect to NSQ Demon %v", err)
+	}
+
+	server.nsq = producer
+
+	log.Println("Successfully connected to NSQDemon")
+
+	return nil
 }
 
 func SendError(w http.ResponseWriter, r *http.Request) {
@@ -213,7 +227,7 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Add to Redis
-		err = server.redis.Set(context.Background(), token.String(), token, time.Minute).Err()
+		err = server.redis.Set(context.Background(), token.String(), token, time.Minute*10).Err()
 		if err != nil {
 			SendErrorMessage(w, r, err.Error())
 			return
@@ -251,16 +265,23 @@ func ValidateSession(next http.Handler) http.Handler {
 			return
 		}
 
-		fmt.Println("Middleware called", cookie.Value)
+		// fmt.Println("Middleware called", cookie.Value)
 		next.ServeHTTP(w, r)
 	})
 }
 
 func ProduceToNSQ(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+
+		// The iframe is there so that you will NOT be redirected to a new page.
 		html := `
 		<h1>Protected Success</h1>
 		<p>This page can only be reached when a valid crsf-token is set.</p>
+		
+		<iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
+		<form action="/protected" method="post" target="dummyframe">
+			<input type="submit" name="NSQmessage" value="Produce NSQ Message" />
+		</form>
 		`
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -275,6 +296,21 @@ func ProduceToNSQ(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		return
+	}
+
+	if r.Method == "POST" {
+
+		//TODO enable selection of topic and message
+		message := "default message"
+
+		err := server.nsq.Publish("default", []byte(message))
+		if err != nil {
+			SendErrorMessage(w, r, err.Error())
+			log.Println("Error when producing message", err)
+			return
+		}
+		fmt.Println("Succesfully produced message")
 		return
 	}
 }
@@ -296,9 +332,10 @@ func FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 			<a href="/protected">
 				<button>Visit Protected Page</button>
 			</a>
+			<br>
 
 
-				
+			<p> This forms does nothing.</p>	
 			<form action="/form" method="post">
 				<label for="fname">First name:</label><br>
 				<input type="text" id="fname" name="fname"><br>
@@ -329,6 +366,7 @@ func FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
 	w.WriteHeader(http.StatusBadRequest)
 }
 

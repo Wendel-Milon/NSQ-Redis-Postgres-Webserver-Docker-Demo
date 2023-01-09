@@ -11,10 +11,10 @@ RUN go mod download
 
 COPY *.go ./
 
-RUN go build
+RUN go build -o backend
 
 EXPOSE 8080
 
 # ENV DATABASE_URL="postgresql://postgres:postgres@db:5432"
 
-CMD [ "./codingchallengehans" ]
+CMD [ "./backend" ]

@@ -1,4 +1,4 @@
-module frontend
+module nsqconsumer
 
 go 1.19
 
