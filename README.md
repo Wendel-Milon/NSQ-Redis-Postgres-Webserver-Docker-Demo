@@ -1,5 +1,6 @@
 # NSQ-Redis-Postgres-Webserver-Docker-Demo
 
+<<<<<<< HEAD
 ## HowTO 
 simply run *docker compose up*
 
@@ -7,6 +8,8 @@ simply run *docker compose up*
 
 to solve simply restart container.
 
+=======
+>>>>>>> fae6cc75a61a9a3dd2541f59afbcd82e1e26a081
 ### PostgreSQL 
  - stores the user via UserID and bycrpt encrypted Password
  - uses *db.sql* file to setup new Tables
