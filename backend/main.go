@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v9"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -91,9 +93,9 @@ func SendErrorMessage(w http.ResponseWriter, r *http.Request, message string) {
 	w.Write([]byte(message))
 }
 
-func CreateUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		html := `
+func CreateUserGET(w http.ResponseWriter, r *http.Request) {
+	// if r.Method == "GET" {
+	html := `
 		<h1>Create User</h1>
 		<form action="/create" method="post">
 			<label for="userid">User ID:</label><br>
@@ -103,60 +105,60 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 			<input type="submit" value="Create">
 	  	</form>
 	  `
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Add("Random", "text/hmtl; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Random", "text/hmtl; charset=utf-8")
 
-		w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK)
 
-		_, err := w.Write([]byte(html))
+	_, err := w.Write([]byte(html))
 
-		if err != nil {
-			SendError(w, r)
-			return
-		}
+	if err != nil {
+		SendError(w, r)
+		return
+	}
+}
+
+func CreateUserPOST(w http.ResponseWriter, r *http.Request) {
+	// if r.Method == "POST" {
+
+	err := r.ParseForm()
+	if err != nil {
+		SendErrorMessage(w, r, err.Error())
 		return
 	}
 
-	if r.Method == "POST" {
-
-		err := r.ParseForm()
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		userid, ok := r.Form["userid"]
-		if !ok {
-			SendErrorMessage(w, r, "notOK") // Maybe just index array....
-			return
-		}
-		joinedUser := strings.Join(userid, "")
-
-		passwd, ok := r.Form["passwd"]
-		if !ok {
-			SendErrorMessage(w, r, "notOK")
-			return
-		}
-		joined := strings.Join(passwd, "") // Maybe just index array....
-
-		//TODO Check for userId already exits!.
-
-		hash, err := bcrypt.GenerateFromPassword([]byte(joined), bcrypt.DefaultCost)
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		sql := `INSERT INTO users (userid, passwd) VALUES ($1, $2)`
-
-		_, err = server.pg.Exec(context.Background(), sql, joinedUser, hash)
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		log.Println("User successfully created", userid)
+	userid, ok := r.Form["userid"]
+	if !ok {
+		SendErrorMessage(w, r, "notOK") // Maybe just index array....
+		return
 	}
+	joinedUser := strings.Join(userid, "")
+
+	passwd, ok := r.Form["passwd"]
+	if !ok {
+		SendErrorMessage(w, r, "notOK")
+		return
+	}
+	joined := strings.Join(passwd, "") // Maybe just index array....
+
+	//TODO Check for userId already exits!.
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(joined), bcrypt.DefaultCost)
+	if err != nil {
+		SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	sql := `INSERT INTO users (userid, passwd) VALUES ($1, $2)`
+
+	_, err = server.pg.Exec(context.Background(), sql, joinedUser, hash)
+	if err != nil {
+		SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	log.Println("User successfully created", userid)
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
 func LoginUser(w http.ResponseWriter, r *http.Request) {
@@ -470,19 +472,41 @@ func main() {
 
 	// Postgres()
 
+	r := chi.NewRouter()
+
+	// Makes it far easier to implement Middleware for all Routes.
+	r.Use(middleware.Logger)
+
+	// Makes it simple to write a catch all 404 Page.
+	r.NotFound(SendError)
+
 	// Machtes Everything not matched somewhere else
-	http.HandleFunc("/", FrontPageHTML)
+	r.HandleFunc("/", FrontPageHTML)
 	// Matches /JSON/* and redirects /JSON to /JSON/
-	http.HandleFunc("/JSON/", JsonPage)
+	r.HandleFunc("/JSON/", JsonPage)
 	// Matches only exaclty /Error
-	http.HandleFunc("/Error", SendError)
-	http.HandleFunc("/form", ProcessForm)
+	r.HandleFunc("/Error", SendError)
+	r.HandleFunc("/form", ProcessForm)
 
-	http.HandleFunc("/create", CreateUser)
-	http.HandleFunc("/login", LoginUser)
+	// Makes the Handlers far simpler and easier to understand
+	// And also far smaller.
+	r.Get("/create", CreateUserGET)
+	r.Post("/create", CreateUserPOST)
 
-	http.Handle("/protected", ValidateSession(http.HandlerFunc(ProduceToNSQ)))
+	r.HandleFunc("/login", LoginUser)
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	// Makes it far easier to protect all underlying Handlers
+	r.Route("/protected", func(r chi.Router) {
+		r.Use(ValidateSession)
+		r.HandleFunc("/", ProduceToNSQ)
+
+		r.HandleFunc("/sth", JsonPage)
+	})
+
+	// r.Handle("/protected", ValidateSession(http.HandlerFunc(ProduceToNSQ)))
+
+	log.Fatal(http.ListenAndServe(":8080", r))
+
+	// r.HandleFunc("/", FrontPageHTML)
 
 }
