@@ -1,4 +1,4 @@
-.PHONY: build run remove
+.PHONY: build clean superclean
 
 imagename=simpleservergo
 imageversion=v1

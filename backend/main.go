@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,6 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // TODO:
@@ -27,20 +31,6 @@ import (
 var CacheURL = os.Getenv("CACHE_URL")
 var PgURL = os.Getenv("DATABASE_URL")
 var NSQD = os.Getenv("NSQ_DEMON")
-
-// const name = "backendOtel"
-
-// func (server *Server) OtelMiddleware(next http.Handler) http.Handler {
-// 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-// 		ctx, span := otel.Tracer(name).Start(context.Background(), "OtelMiddleware")
-
-// 		fmt.Printf("ctx: %+v\n", ctx)
-// 		fmt.Printf("span: %+v\n", span)
-
-// 		next.ServeHTTP(w, r)
-// 	})
-// }
 
 type Server struct {
 	redis *redis.Client
@@ -206,6 +196,9 @@ func AttachAllPaths(server *Server) {
 	server.mux.Handle("/metrics", promhttp.Handler())
 }
 
+// Tracing stuff stolen from
+// https://dev.to/aurelievache/learning-go-by-examples-part-10-instrument-your-go-app-with-opentelemetry-and-send-traces-to-jaeger-distributed-tracing-1p4a
+
 func main() {
 
 	server, err := SetupServer()
@@ -214,6 +207,16 @@ func main() {
 	}
 
 	AttachAllPaths(server)
+
+	// Tracer
+	tp, err := tracerProvider("http://localhost:14268/api/traces")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Register our TracerProvider as the global so any imported
+	// instrumentation in the future will default to using it.
+	otel.SetTracerProvider(tp)
 
 	// Server run context
 	serverCtx, serverStopCtx := context.WithCancel(context.Background())
@@ -239,11 +242,35 @@ func main() {
 		}()
 
 		// Trigger graceful shutdown
+
+		tp.Shutdown(serverCtx) //TODO move to server
+
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
+
+	tr := tp.Tracer("component-main")
+
+	ctx, span := tr.Start(context.Background(), "hello")
+	defer span.End()
+
+	// HTTP Handlers
+	helloHandler := func(w http.ResponseWriter, r *http.Request) {
+		// Use the global TracerProvider
+		tr := otel.Tracer("hello-handler")
+		_, span := tr.Start(ctx, "hello")
+		span.SetAttributes(attribute.Key("mykey").String("value"))
+		defer span.End()
+
+		yourName := os.Getenv("MY_NAME")
+		fmt.Fprintf(w, "Hello %q!", yourName)
+	}
+
+	otelHandler := otelhttp.NewHandler(http.HandlerFunc(helloHandler), "Hello")
+
+	server.mux.Handle("/trace", otelHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", server.mux))
 }
