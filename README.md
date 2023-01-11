@@ -1,6 +1,14 @@
 # NSQ-Redis-Postgres-Webserver-Docker-Demo
 
-<<<<<<< HEAD
+## ReadME
+I changed to Dockerfile from default golang:alpine to ubuntu:latest
+As a result the go project needs to be precompiled. To that via make build
+The resulting image is **70mb** instead of **300mb**.
+
+There is also a Dockerfile for alpine. When build this way the final image is only **20mb**.
+However, the go project needs to build with *CGO_ENABLED=0 go build .*
+
+
 ## HowTO 
 simply run *docker compose up*
 
@@ -8,8 +16,6 @@ simply run *docker compose up*
 
 to solve simply restart container.
 
-=======
->>>>>>> fae6cc75a61a9a3dd2541f59afbcd82e1e26a081
 ### PostgreSQL 
  - stores the user via UserID and bycrpt encrypted Password
  - uses *db.sql* file to setup new Tables

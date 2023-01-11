@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/nsqio/go-nsq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var NSQ_LOOKUP = os.Getenv("NSQ_LOOKUP")
@@ -62,6 +64,11 @@ func ConsumeMessage() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(":2112", nil)
+	}()
 
 	// wait for signal to exit
 	sigChan := make(chan os.Signal, 1)

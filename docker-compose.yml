@@ -45,6 +45,11 @@ services:
         build: ./backend
         volumes:
             - ./backend:/usr/src/backend
+        # restart_policy:
+        #     condition: on-failure
+        #     delay: 3s
+        #     max_attempts: 2
+        #     window: 120s
         ports: 
             - "8080:8080"
         depends_on:
@@ -113,8 +118,23 @@ services:
         volumes: 
             - cache:/data
 
+
+    prometheus:
+        image: prom/prometheus:latest
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./prometheus.yml:/etc/prometheus/prometheus.yml
+            - prometheus_data:/prometheus
+
+        depends_on:
+            - gobackend
+
+
 volumes:
     db:
         driver: local
     cache:
+        driver: local
+    prometheus_data:
         driver: local

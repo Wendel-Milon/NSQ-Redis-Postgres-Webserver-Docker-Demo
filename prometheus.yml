@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 1m
+
+scrape_configs:
+  - job_name: "prometheus"
+    scrape_interval: 1m
+    static_configs:
+    - targets: ["localhost:9090"]
+
+  - job_name: "gobackend"
+    scrape_interval: 30s
+    static_configs:
+    - targets: ["gobackend:8080"]
+
+  - job_name: "nsqconsumer_links"
+    scrape_interval: 1m
+    dns_sd_configs:
+      - names: ["nsqconsumer_links"]
+        type: "A"
+        port: 2112
+    
+  - job_name: "nsqconsumer_rechts"
+    scrape_interval: 1m
+    dns_sd_configs:
+      - names: ["nsqconsumer_rechts"]
+        type: "A"
+        port: 2112
+    
