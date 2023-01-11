@@ -1,18 +1,19 @@
-FROM golang:1.19-alpine
+FROM ubuntu:latest
 
 # Needs to be set for go mod to function
-WORKDIR /usr/games
+# WORKDIR /usr/games
 
-COPY go.mod ./
+# COPY go.mod ./
 
-COPY go.sum ./ 
+# COPY go.sum ./ 
 
-RUN go mod download
+# RUN go mod download
 
-COPY *.go ./
+# COPY *.go ./
 
-RUN go build -o nsqconsumer
+# RUN go build -o nsqconsumer
 
+WORKDIR /usr/src/nsqconsumer
 EXPOSE 8080
 
 # ENV DATABASE_URL="postgresql://postgres:postgres@db:5432"

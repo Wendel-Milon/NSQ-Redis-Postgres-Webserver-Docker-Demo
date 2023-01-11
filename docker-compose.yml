@@ -19,7 +19,6 @@ services:
         image: nsqio/nsq
         command: /nsqd --lookupd-tcp-address=nsqlookupd:4160
         # command: /nsqd --lookupd-tcp-address=127.0.0.1:4160
-
         depends_on:
             - nsqlookupd
         ports:
@@ -35,7 +34,6 @@ services:
         image: nsqio/nsq
         command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
         # command: /nsqadmin --lookupd-http-address=127.0.0.1:4161
-
         depends_on:
             - nsqlookupd  
         ports:
@@ -45,7 +43,8 @@ services:
 
     gobackend:
         build: ./backend
-
+        volumes:
+            - ./backend:/usr/src/backend
         ports: 
             - "8080:8080"
         depends_on:
@@ -60,6 +59,8 @@ services:
     # Simple Consumer
     nsqconsumer_links:
         build: ./nsqconsumer
+        volumes:
+            - ./nsqconsumer:/usr/src/nsqconsumer
         depends_on:
             - postgresDB
             - redisCache
@@ -71,9 +72,12 @@ services:
             - NSQ_CHAN=links
         deploy:
             replicas: 2
+
     # Same as _links but different Channel
     nsqconsumer_rechts:
         build: ./nsqconsumer
+        volumes:
+            - ./nsqconsumer:/usr/src/nsqconsumer
         depends_on:
             - postgresDB
             - redisCache

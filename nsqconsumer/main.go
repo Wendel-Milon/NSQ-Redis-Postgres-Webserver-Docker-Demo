@@ -16,6 +16,7 @@ var NSQ_CHAN = os.Getenv("NSQ_CHAN")
 var NSQ_TOPIC = os.Getenv("NSQ_TOPIC")
 
 func main() {
+	log.Println("Starting consuming for Lookup:", NSQ_LOOKUP, "; Topic:", NSQ_TOPIC, "; Channel:", "NSQ_CHAN")
 	ConsumeMessage()
 }
 
