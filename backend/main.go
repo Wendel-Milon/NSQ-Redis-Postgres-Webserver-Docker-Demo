@@ -7,7 +7,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -27,13 +29,12 @@ type Server struct {
 	redis *redis.Client
 	pg    *pgx.Conn
 	nsq   *nsq.Producer
+	mux   *chi.Mux
 }
 
-// TODO probably not the best idea to make this a global.
-// Maybe inject into Handlers seems more nice....
-var server Server
+func SetupServer() (*Server, error) {
 
-func SetupServer() error {
+	server := Server{}
 
 	/************************ REDIS ***************************/
 
@@ -47,12 +48,12 @@ func SetupServer() error {
 	// Testing for a valid connection.
 	err := rdb.Set(context.Background(), "TEST", "Connection", 0).Err()
 	if err != nil {
-		return fmt.Errorf("unable to set redis value: %v", err)
+		return nil, fmt.Errorf("unable to set redis value: %v", err)
 
 	}
 	err = rdb.Del(context.Background(), "TEST").Err()
 	if err != nil {
-		return fmt.Errorf("unable to delete the redis key: %v", err)
+		return nil, fmt.Errorf("unable to delete the redis key: %v", err)
 	}
 	server.redis = rdb
 
@@ -62,7 +63,7 @@ func SetupServer() error {
 
 	conn, err := pgx.Connect(context.Background(), PgURL)
 	if err != nil {
-		return fmt.Errorf("unable to connect to database: %v", err)
+		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
 	server.pg = conn
 
@@ -73,28 +74,41 @@ func SetupServer() error {
 	config := nsq.NewConfig()
 	producer, err := nsq.NewProducer(fmt.Sprintf("%s:4150", NSQD), config)
 	if err != nil {
-		return fmt.Errorf("unable to connect to NSQ Demon %v", err)
+		return nil, fmt.Errorf("unable to connect to NSQ Demon %v", err)
 	}
 
 	server.nsq = producer
 
 	log.Println("Successfully connected to NSQDemon")
 
-	return nil
+	/************************** Chi MUX *********************************/
+
+	server.mux = chi.NewRouter()
+
+	// Makes it far easier to implement Middleware for all Routes.
+	// A good base middleware stack
+	server.mux.Use(middleware.RequestID) // Injects a request ID into the context of each request
+	server.mux.Use(middleware.RealIP)    // Sets a http.Request's RemoteAddr to either X-Real-IP or X-Forwarded-For
+	server.mux.Use(middleware.Logger)    // Logs the start and end of each request with the elapsed processing time
+	server.mux.Use(middleware.Recoverer) // Gracefully absorb panics and prints the stack trace
+
+	// Makes it simple to write a catch all 404 Page.
+	server.mux.NotFound(server.SendError)
+
+	return &server, nil
 }
 
-func SendError(w http.ResponseWriter, r *http.Request) {
+func (server *Server) SendError(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte("sth went wrong"))
 }
 
-func SendErrorMessage(w http.ResponseWriter, r *http.Request, message string) {
+func (server *Server) SendErrorMessage(w http.ResponseWriter, r *http.Request, message string) {
 	w.WriteHeader(http.StatusInternalServerError)
 	w.Write([]byte(message))
 }
 
-func CreateUserGET(w http.ResponseWriter, r *http.Request) {
-	// if r.Method == "GET" {
+func (server *Server) CreateUserGET(w http.ResponseWriter, r *http.Request) {
 	html := `
 		<h1>Create User</h1>
 		<form action="/create" method="post">
@@ -113,30 +127,30 @@ func CreateUserGET(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte(html))
 
 	if err != nil {
-		SendError(w, r)
+		server.SendError(w, r)
 		return
 	}
 }
 
-func CreateUserPOST(w http.ResponseWriter, r *http.Request) {
+func (server *Server) CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 	// if r.Method == "POST" {
 
 	err := r.ParseForm()
 	if err != nil {
-		SendErrorMessage(w, r, err.Error())
+		server.SendErrorMessage(w, r, err.Error())
 		return
 	}
 
 	userid, ok := r.Form["userid"]
 	if !ok {
-		SendErrorMessage(w, r, "notOK") // Maybe just index array....
+		server.SendErrorMessage(w, r, "notOK") // Maybe just index array....
 		return
 	}
 	joinedUser := strings.Join(userid, "")
 
 	passwd, ok := r.Form["passwd"]
 	if !ok {
-		SendErrorMessage(w, r, "notOK")
+		server.SendErrorMessage(w, r, "notOK")
 		return
 	}
 	joined := strings.Join(passwd, "") // Maybe just index array....
@@ -145,7 +159,7 @@ func CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(joined), bcrypt.DefaultCost)
 	if err != nil {
-		SendErrorMessage(w, r, err.Error())
+		server.SendErrorMessage(w, r, err.Error())
 		return
 	}
 
@@ -153,7 +167,7 @@ func CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	_, err = server.pg.Exec(context.Background(), sql, joinedUser, hash)
 	if err != nil {
-		SendErrorMessage(w, r, err.Error())
+		server.SendErrorMessage(w, r, err.Error())
 		return
 	}
 
@@ -161,9 +175,8 @@ func CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func LoginUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		html := `
+func (server *Server) LoginUserGET(w http.ResponseWriter, r *http.Request) {
+	html := `
 		<h1>Login</h1>
 		<form action="/login" method="post">
 			<label for="userid">User ID:</label><br>
@@ -173,84 +186,81 @@ func LoginUser(w http.ResponseWriter, r *http.Request) {
 			<input type="submit" value="Create">
 	  	</form>
 	  `
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Add("Random", "text/hmtl; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Random", "text/hmtl; charset=utf-8")
 
-		w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK)
 
-		_, err := w.Write([]byte(html))
+	_, err := w.Write([]byte(html))
 
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-		return
-	}
-
-	if r.Method == "POST" {
-
-		err := r.ParseForm()
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		userid, ok := r.Form["userid"]
-		if !ok {
-			SendErrorMessage(w, r, "notOK") // Maybe just index array....
-			return
-		}
-		joinedUser := strings.Join(userid, "")
-
-		passwd, ok := r.Form["passwd"]
-		if !ok {
-			SendErrorMessage(w, r, "notOK")
-			return
-		}
-		joined := strings.Join(passwd, "") // Maybe just index array....
-
-		var pwhash []byte
-		err = server.pg.QueryRow(context.Background(), "select passwd FROM users where userid=$1", joinedUser).Scan(&pwhash)
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		err = bcrypt.CompareHashAndPassword(pwhash, []byte(joined))
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		// Create Cookie
-		token, err := uuid.NewRandom()
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-		// Add to Redis
-		err = server.redis.Set(context.Background(), token.String(), token, time.Minute*10).Err()
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			return
-		}
-
-		// Return Cookie
-		cookie := http.Cookie{
-			Name:  "csrftoken",
-			Value: token.String(),
-			// RawExpires: ,
-		}
-
-		http.SetCookie(w, &cookie)
-
-		log.Println("User", joinedUser, "logged into System.")
-		http.Redirect(w, r, "/protected", http.StatusSeeOther)
+	if err != nil {
+		server.SendError(w, r)
 		return
 	}
 }
 
-func ValidateSession(next http.Handler) http.Handler {
+func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
+
+	err := r.ParseForm()
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	userid, ok := r.Form["userid"]
+	if !ok {
+		server.SendErrorMessage(w, r, "notOK") // Maybe just index array....
+		return
+	}
+	joinedUser := strings.Join(userid, "")
+
+	passwd, ok := r.Form["passwd"]
+	if !ok {
+		server.SendErrorMessage(w, r, "notOK")
+		return
+	}
+	joined := strings.Join(passwd, "") // Maybe just index array....
+
+	var pwhash []byte
+	err = server.pg.QueryRow(context.Background(), "select passwd FROM users where userid=$1", joinedUser).Scan(&pwhash)
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	err = bcrypt.CompareHashAndPassword(pwhash, []byte(joined))
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	// Create Cookie
+	token, err := uuid.NewRandom()
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		return
+	}
+	// Add to Redis
+	err = server.redis.Set(context.Background(), token.String(), token, time.Minute*10).Err()
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		return
+	}
+
+	// Return Cookie
+	cookie := http.Cookie{
+		Name:  "csrftoken",
+		Value: token.String(),
+		// RawExpires: ,
+	}
+
+	http.SetCookie(w, &cookie)
+
+	log.Println("User", joinedUser, "logged into System.")
+	http.Redirect(w, r, "/protected", http.StatusSeeOther)
+}
+
+func (server *Server) ValidateSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		cookie, err := r.Cookie("csrftoken")
@@ -272,11 +282,10 @@ func ValidateSession(next http.Handler) http.Handler {
 	})
 }
 
-func ProduceToNSQ(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
+func (server *Server) ProduceToNSQGET(w http.ResponseWriter, r *http.Request) {
 
-		// The iframe is there so that you will NOT be redirected to a new page.
-		html := `
+	// The iframe is there so that you will NOT be redirected to a new page.
+	html := `
 		<h1>Protected Success</h1>
 		<p>This page can only be reached when a valid crsf-token is set.</p>
 		
@@ -286,41 +295,35 @@ func ProduceToNSQ(w http.ResponseWriter, r *http.Request) {
 		</form>
 		`
 
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Add("Random", "text/hmtl; charset=utf-8")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Random", "text/hmtl; charset=utf-8")
 
-		w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK)
 
-		_, err := w.Write([]byte(html))
+	_, err := w.Write([]byte(html))
 
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-
-		return
-	}
-
-	if r.Method == "POST" {
-
-		//TODO enable selection of topic and message
-		message := "default message"
-
-		err := server.nsq.Publish("default", []byte(message))
-		if err != nil {
-			SendErrorMessage(w, r, err.Error())
-			log.Println("Error when producing message", err)
-			return
-		}
-		fmt.Println("Succesfully produced message")
+	if err != nil {
+		server.SendError(w, r)
 		return
 	}
 }
 
-func FrontPageHTML(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
+func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 
-		html := `
+	//TODO enable selection of topic and message
+	message := "default message"
+
+	err := server.nsq.Publish("default", []byte(message))
+	if err != nil {
+		server.SendErrorMessage(w, r, err.Error())
+		log.Println("Error when producing message", err)
+		return
+	}
+	fmt.Println("Succesfully produced message")
+}
+
+func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
+	html := `
 			<h1>Hello World</h1>
 
 			<a href="/login">
@@ -348,165 +351,148 @@ func FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 		  
 		  `
 
-		// The order in which to call these 3 is:
-		//		1. Set Header
-		//		2. WriteHeader
-		//		3. Write
-		//
-		// All other cases do not work correctly!
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Add("Random", "text/hmtl; charset=utf-8")
+	// The order in which to call these 3 is:
+	//		1. Set Header
+	//		2. WriteHeader
+	//		3. Write
+	//
+	// All other cases do not work correctly!
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Random", "text/hmtl; charset=utf-8")
 
-		w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusOK)
 
-		_, err := w.Write([]byte(html))
+	_, err := w.Write([]byte(html))
 
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-
-		return
-	}
-
-	w.WriteHeader(http.StatusBadRequest)
-}
-
-func ProcessForm(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-
-		err := r.ParseForm()
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-
-		fname := r.Form["fname"]
-		lname := r.Form["lname"]
-
-		log.Println("Received POST!", fname, lname)
-
-		// http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-
-		return
-	}
-
-	if r.Method == "GET" {
-		http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
-	}
-	SendError(w, r)
-}
-
-func JsonPage(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-
-		type sth1 struct { // Does not matter if private or not
-			Zahl  int // Matters if privat or not.
-			Text  string
-			Datum time.Time
-		}
-
-		sth := sth1{
-			Zahl:  1,
-			Text:  "Hello World",
-			Datum: time.Now(),
-		}
-
-		bytes, err := json.Marshal(sth)
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-
-		_, err = w.Write(bytes)
-		if err != nil {
-			SendError(w, r)
-			return
-		}
-		return
-	}
-
-	w.WriteHeader(http.StatusBadRequest)
-}
-
-func Postgres() {
-
-	url := os.Getenv("DATABASE_URL")
-	fmt.Println(url)
-
-	conn, err := pgx.Connect(context.Background(), url)
-	// conn, err := pgx.Connect(context.Background(), "postgresql://postgres:postgres@localhost:5432")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		server.SendError(w, r)
+		return
 	}
-	defer conn.Close(context.Background())
+}
 
-	var name string
-	var weight int64
-	err = conn.QueryRow(context.Background(), "select name, weight from widgets where id=$1", 42).Scan(&name, &weight)
+func (server *Server) ProcessForm(w http.ResponseWriter, r *http.Request) {
+	err := r.ParseForm()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "QueryRow failed: %v\n", err)
-		// os.Exit(1)
+		server.SendError(w, r)
+		return
 	}
 
-	fmt.Println(name, weight)
+	fname := r.Form["fname"]
+	lname := r.Form["lname"]
+
+	log.Println("Received POST!", fname, lname)
+}
+
+func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
+
+	type sth1 struct { // Does not matter if private or not
+		Zahl  int // Matters if privat or not.
+		Text  string
+		Datum time.Time
+	}
+
+	sth := sth1{
+		Zahl:  1,
+		Text:  "Hello World",
+		Datum: time.Now(),
+	}
+
+	bytes, err := json.Marshal(sth)
+	if err != nil {
+		server.SendError(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	_, err = w.Write(bytes)
+	if err != nil {
+		server.SendError(w, r)
+		return
+	}
+}
+
+func (server *Server) Shutdown(context.Context) error {
+
+	err := server.pg.Close(context.Background())
+	if err != nil {
+		return err
+	}
+	err = server.redis.Close()
+	if err != nil {
+		return err
+	}
+
+	log.Println("Graceful shutdown successful!")
+	os.Exit(1)
+	return nil
 }
 
 func main() {
 
-	// fmt.Println("V9:")
-	// RedisUsingV9()
-
-	err := SetupServer()
+	server, err := SetupServer()
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer func() {
-		server.pg.Close(context.Background())
-		server.redis.Close()
-	}()
-
-	// Postgres()
-
-	r := chi.NewRouter()
-
-	// Makes it far easier to implement Middleware for all Routes.
-	r.Use(middleware.Logger)
-
-	// Makes it simple to write a catch all 404 Page.
-	r.NotFound(SendError)
 
 	// Machtes Everything not matched somewhere else
-	r.HandleFunc("/", FrontPageHTML)
+	server.mux.Get("/", server.FrontPageHTML)
+	server.mux.Post("/form", server.ProcessForm)
+
 	// Matches /JSON/* and redirects /JSON to /JSON/
-	r.HandleFunc("/JSON/", JsonPage)
+	server.mux.Get("/JSON/", server.JsonPage)
+
 	// Matches only exaclty /Error
-	r.HandleFunc("/Error", SendError)
-	r.HandleFunc("/form", ProcessForm)
+	server.mux.HandleFunc("/Error", server.SendError)
 
 	// Makes the Handlers far simpler and easier to understand
 	// And also far smaller.
-	r.Get("/create", CreateUserGET)
-	r.Post("/create", CreateUserPOST)
+	server.mux.Get("/create", server.CreateUserGET)
+	server.mux.Post("/create", server.CreateUserPOST)
 
-	r.HandleFunc("/login", LoginUser)
+	server.mux.Get("/login", server.LoginUserGET)
+	server.mux.Post("/login", server.LoginUserPOST)
 
 	// Makes it far easier to protect all underlying Handlers
-	r.Route("/protected", func(r chi.Router) {
-		r.Use(ValidateSession)
-		r.HandleFunc("/", ProduceToNSQ)
+	protectedRouter := chi.NewRouter()
 
-		r.HandleFunc("/sth", JsonPage)
-	})
+	protectedRouter.Use(server.ValidateSession)
+	protectedRouter.Get("/", server.ProduceToNSQGET)
+	protectedRouter.Post("/", server.ProduceToNSQPOST)
+	protectedRouter.Get("/sth", server.JsonPage)
 
-	// r.Handle("/protected", ValidateSession(http.HandlerFunc(ProduceToNSQ)))
+	server.mux.Mount("/protected", protectedRouter)
 
-	log.Fatal(http.ListenAndServe(":8080", r))
+	// Server run context
+	serverCtx, serverStopCtx := context.WithCancel(context.Background())
 
-	// r.HandleFunc("/", FrontPageHTML)
+	// Listen for syscall signals for process to interrupt/quit
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
+	go func() {
+		s := <-sig
+		log.Println("received shutdown signal: ", s)
+
+		// Shutdown signal with grace period of 30 seconds
+		shutdownCtx, cancelFunc := context.WithTimeout(serverCtx, 2*time.Second)
+		defer serverStopCtx()
+		defer cancelFunc()
+
+		go func() {
+			<-shutdownCtx.Done()
+			if shutdownCtx.Err() == context.DeadlineExceeded {
+				log.Fatal("graceful shutdown timed out.. forcing exit.")
+			}
+		}()
+
+		// Trigger graceful shutdown
+		err := server.Shutdown(shutdownCtx)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	log.Fatal(http.ListenAndServe(":8080", server.mux))
 }
