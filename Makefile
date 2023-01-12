@@ -1,5 +1,12 @@
 .PHONY: build clean superclean
 
+.EXPORT_ALL_VARIABLES:
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432
+CACHE_URL=localhost
+TRACING_URL=localhost:8001
+JAEGER_URL=localhost:14268
+NSQ_DEMON=localhost
+
 imagename=simpleservergo
 imageversion=v1
 
@@ -21,7 +28,11 @@ build:
 # docker image rm ${imagename}:${imageversion}
 
 
+run:
+	@cd backend; go run .
 
+
+	
 clean:
 	docker compose down
 	cd nsqconsumer; rm nsqconsumer

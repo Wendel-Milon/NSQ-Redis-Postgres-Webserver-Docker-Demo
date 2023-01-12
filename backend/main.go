@@ -65,7 +65,19 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 			<a href="/protected">
 				<button>Visit Protected Page</button>
 			</a>
-			<br>
+
+			<a href="/metrics">
+				<button>Prometheus metrics</button>
+			</a>
+
+			<a href="/JSON">
+				<button>Sample JSON Page</button>
+			</a>
+
+			<a href="/trace">
+				<button>Create a Trace</button>
+			</a>
+			<br><br>
 
 
 			<p> This forms does nothing.</p>	
@@ -175,10 +187,10 @@ func AttachAllPaths(server *Server) {
 	server.mux.Get("/", server.FrontPageHTML)
 	server.mux.Post("/form", server.ProcessForm)
 
+	// This is the default 404 Page
 	server.mux.NotFound(server.SendError)
 
-	// Matches /JSON/* and redirects /JSON to /JSON/
-	server.mux.Get("/JSON/", server.JsonPage)
+	server.mux.Get("/JSON", server.JsonPage)
 
 	server.mux.Handle("/metrics", promhttp.Handler())
 	server.mux.Get("/trace", server.SpecialTracing)
