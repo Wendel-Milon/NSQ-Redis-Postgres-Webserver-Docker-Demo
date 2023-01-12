@@ -14,6 +14,9 @@ FROM ubuntu:latest
 # RUN go build -o nsqconsumer
 
 WORKDIR /usr/src/nsqconsumer
+
+COPY nsqconsumer /usr/src/nsqconsumer/nsqconsumer
+
 EXPOSE 8080
 
 # ENV DATABASE_URL="postgresql://postgres:postgres@db:5432"

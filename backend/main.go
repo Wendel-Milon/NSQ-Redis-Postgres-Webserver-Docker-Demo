@@ -77,6 +77,11 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 			<a href="/trace">
 				<button>Create a Trace</button>
 			</a>
+
+			<iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
+			<form action="/logout" method="post" target="dummyframe">
+				<input type="submit" name="logout" value="Logout" />
+			</form>
 			<br><br>
 
 
@@ -205,6 +210,7 @@ func AttachAllPaths(server *Server) {
 
 	server.mux.Get("/login", server.LoginUserGET)
 	server.mux.Post("/login", server.LoginUserPOST)
+	server.mux.Post("/logout", server.LogoutUserPOST)
 
 	// Makes it far easier to protect all underlying Handlers
 	protectedRouter := chi.NewRouter()

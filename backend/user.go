@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -161,4 +162,29 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("User", joinedUser, "logged into System.")
 	http.Redirect(w, r, "/protected", http.StatusSeeOther)
+}
+
+func (server *Server) LogoutUserPOST(w http.ResponseWriter, r *http.Request) {
+
+	cookie, err := r.Cookie("csrftoken")
+	if err != nil {
+		fmt.Println("No Cookie was set. Request was useless!", err)
+		return
+	}
+
+	i, err := server.redis.Del(context.Background(), cookie.Value).Result()
+	if err != nil {
+		fmt.Println("Deleting the cookie returned an error!", err, cookie, i)
+		// http.Redirect(w, r, "/login", http.StatusUnauthorized)
+		return
+	}
+	fmt.Println("Deletion of the cookie was successful!", cookie, i)
+	// Return Cookie
+	newCookie := http.Cookie{
+		Name:  "csrftoken",
+		Value: "",
+		// RawExpires: ,
+	}
+
+	http.SetCookie(w, &newCookie)
 }
