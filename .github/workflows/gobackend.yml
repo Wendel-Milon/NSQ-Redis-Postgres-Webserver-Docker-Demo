@@ -18,11 +18,11 @@ jobs:
 
     - name: Set up Go
       uses: actions/setup-go@v3
-      working-directory: ./backend
       with:
         go-version: 1.19
-        # cache: true   # should make it way faster
-    
+        cache: true   # should make it way faster
+        cache-dependency-path: backend/go.sum
+
     - name: Build backend
       working-directory: ./backend
       run: go build -v ./...
