@@ -10,18 +10,31 @@ import (
 	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v5"
 	"github.com/nsqio/go-nsq"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	tracesdk "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+)
+
+const (
+	service     = "backend"
+	environment = "development"
+	id          = 1
 )
 
 func SetupServer() (*Server, error) {
 
-	/************************ REDIS ***************************/
+	/************************ REDIS *********************************/
 
 	rdb, err := ConnectRedis()
 	if err != nil {
 		return nil, err
 	}
 
-	/************************** POSTGRES ***********************/
+	/************************** POSTGRES *****************************/
 
 	pgconn, err := ConnectPostgre()
 	if err != nil {
@@ -35,18 +48,34 @@ func SetupServer() (*Server, error) {
 		return nil, err
 	}
 
+	/************************ TRACING *********************************/
+	tracer, err := SetupTracerProvider()
+	if err != nil {
+		return nil, err
+	}
+
 	/************************** Chi MUX *********************************/
 
 	mux := CreateRouter()
 
 	/*****************/
 
-	return &Server{
+	s := &Server{
 		redis: rdb,
 		pg:    pgconn,
 		nsq:   nsq,
 		mux:   mux,
-	}, nil
+		tp:    tracer,
+	}
+
+	// Register our TracerProvider as the global so any imported
+	// instrumentation in the future will default to using it.
+	otel.SetTracerProvider(s.tp)
+	// In order to propagate trace context over the wire,
+	// a propagator must be registered with the OpenTelemetry API.
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+
+	return s, nil
 }
 
 func ConnectRedis() (*redis.Client, error) {
@@ -94,6 +123,7 @@ func ConnectNSQ() (*nsq.Producer, error) {
 	return producer, nil
 }
 
+// CreateRouter creates the router and attaches some default middlewares.
 func CreateRouter() *chi.Mux {
 	mux := chi.NewRouter()
 
@@ -105,4 +135,28 @@ func CreateRouter() *chi.Mux {
 	mux.Use(middleware.Recoverer) // Gracefully absorb panics and prints the stack trace
 
 	return mux
+}
+
+// SetupTracerProvider creates the base stuff. Stolen from
+// https://dev.to/aurelievache/learning-go-by-examples-part-10-instrument-your-go-app-with-opentelemetry-and-send-traces-to-jaeger-distributed-tracing-1p4a
+func SetupTracerProvider() (*tracesdk.TracerProvider, error) {
+
+	url := fmt.Sprintf("http://%s/api/traces", Jaeger)
+	// Create the Jaeger exporter
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
+	if err != nil {
+		return nil, err
+	}
+	tp := tracesdk.NewTracerProvider(
+		// Always be sure to batch in production.
+		tracesdk.WithBatcher(exp),
+		// Record information about this application in a Resource.
+		tracesdk.WithResource(resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String(service),
+			attribute.String("environment", environment),
+			attribute.Int64("ID", id),
+		)),
+	)
+	return tp, nil
 }

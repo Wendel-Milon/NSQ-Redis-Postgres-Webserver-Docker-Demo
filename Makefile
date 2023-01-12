@@ -11,6 +11,7 @@ default:
 build:
 	cd nsqconsumer; go build -o nsqconsumer .
 	cd backend; go build -o backend .
+	cd tracingApp; go build -o tracingapp .
 
 # Starting a container which will be deleted after exit:
 # run:
@@ -25,10 +26,12 @@ clean:
 	docker compose down
 	cd nsqconsumer; rm nsqconsumer
 	cd backend; rm backend
+	cd tracingApp; rm tracingapp
 
 
 superclean: clean
 	docker rmi codingchallengehans-gobackend:latest
+	docker rmi codingchallengehans-tracingapp:latest
 	docker rmi codingchallengehans-nsqconsumer_links:latest
 	docker rmi codingchallengehans-nsqconsumer_rechts:latest
 

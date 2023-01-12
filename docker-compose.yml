@@ -56,10 +56,15 @@ services:
             - postgresDB
             - redisCache
             - nsqd
+            - jaegertracing
         environment:
             - DATABASE_URL=postgres://postgres:postgres@postgresDB:5432
             - CACHE_URL=redisCache
             - NSQ_DEMON=nsqd
+            - JAEGER_URL=jaegertracing:14268
+            - TRACING_URL=tracingapp:8001
+            - MY_NAME=test
+
 
     # Simple Consumer
     nsqconsumer_links:
@@ -95,6 +100,17 @@ services:
         deploy:
             replicas: 2
 
+    tracingapp:
+        build: ./tracingApp
+        depends_on:
+            - gobackend
+        volumes:
+            - ./tracingApp:/usr/src/tracingApp
+        environment:
+            - JAEGER_URL=jaegertracing:14268
+        ports:
+            - "8001:8001"
+
 
     postgresDB:
         image: postgres:15.1-alpine
@@ -129,6 +145,19 @@ services:
 
         depends_on:
             - gobackend
+
+    jaegertracing:
+        image: jaegertracing/all-in-one:latest
+        ports:
+            - "5775:5775/udp"
+            - "6831:6831/udp"
+            - "6832:6832/udp"
+            - 5778:5778
+            - "16686:16686"
+            - "14268:14268"
+            - "9411:9411"
+        environment:
+            - COLLECTOR_ZIPKIN_HTTP_PORT=9411
 
 
 volumes:

@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,9 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/sdk/trace"
 )
 
 // TODO:
@@ -31,12 +29,15 @@ import (
 var CacheURL = os.Getenv("CACHE_URL")
 var PgURL = os.Getenv("DATABASE_URL")
 var NSQD = os.Getenv("NSQ_DEMON")
+var Jaeger = os.Getenv("JAEGER_URL") //Port is 14268
+var TracingApp = os.Getenv("TRACING_URL")
 
 type Server struct {
 	redis *redis.Client
 	pg    *pgx.Conn
 	nsq   *nsq.Producer
 	mux   *chi.Mux
+	tp    *trace.TracerProvider
 }
 
 func (server *Server) SendError(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +152,11 @@ func (server *Server) Shutdown(context.Context) error {
 		return err
 	}
 
+	err = server.tp.Shutdown(context.Background()) //TODO move to server
+	if err != nil {
+		return err
+	}
+
 	log.Println("Graceful shutdown successful!")
 	os.Exit(1)
 	return nil
@@ -158,10 +164,12 @@ func (server *Server) Shutdown(context.Context) error {
 
 func AttachAllPaths(server *Server) {
 
-	promiddleWare := NewPrometheusMiddleware("backend", []float64{5000}...) // TODO more intervals
+	promiddleWare := NewPrometheusMiddleware("backend", []float64{400}...) // TODO more intervals
 
+	// Prometheus Metrics
 	server.mux.Use(promiddleWare)
-	// server.mux.Use(server.OtelMiddleware)
+	// All Routes are addded a span to track down requests.
+	server.mux.Use(tracing)
 
 	// Machtes Everything not matched somewhere else
 	server.mux.Get("/", server.FrontPageHTML)
@@ -171,6 +179,9 @@ func AttachAllPaths(server *Server) {
 
 	// Matches /JSON/* and redirects /JSON to /JSON/
 	server.mux.Get("/JSON/", server.JsonPage)
+
+	server.mux.Handle("/metrics", promhttp.Handler())
+	server.mux.Get("/trace", server.SpecialTracing)
 
 	// Matches only exaclty /Error
 	server.mux.HandleFunc("/Error", server.SendError)
@@ -193,11 +204,7 @@ func AttachAllPaths(server *Server) {
 
 	server.mux.Mount("/protected", protectedRouter)
 
-	server.mux.Handle("/metrics", promhttp.Handler())
 }
-
-// Tracing stuff stolen from
-// https://dev.to/aurelievache/learning-go-by-examples-part-10-instrument-your-go-app-with-opentelemetry-and-send-traces-to-jaeger-distributed-tracing-1p4a
 
 func main() {
 
@@ -208,18 +215,7 @@ func main() {
 
 	AttachAllPaths(server)
 
-	// Tracer
-	tp, err := tracerProvider("http://localhost:14268/api/traces")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	// Register our TracerProvider as the global so any imported
-	// instrumentation in the future will default to using it.
-	otel.SetTracerProvider(tp)
-
-	// Server run context
-	serverCtx, serverStopCtx := context.WithCancel(context.Background())
+	rand.Seed(time.Now().Unix())
 
 	// Listen for syscall signals for process to interrupt/quit
 	sig := make(chan os.Signal, 1)
@@ -230,8 +226,7 @@ func main() {
 		log.Println("received shutdown signal: ", s)
 
 		// Shutdown signal with grace period of 30 seconds
-		shutdownCtx, cancelFunc := context.WithTimeout(serverCtx, 2*time.Second)
-		defer serverStopCtx()
+		shutdownCtx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancelFunc()
 
 		go func() {
@@ -242,35 +237,11 @@ func main() {
 		}()
 
 		// Trigger graceful shutdown
-
-		tp.Shutdown(serverCtx) //TODO move to server
-
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}()
-
-	tr := tp.Tracer("component-main")
-
-	ctx, span := tr.Start(context.Background(), "hello")
-	defer span.End()
-
-	// HTTP Handlers
-	helloHandler := func(w http.ResponseWriter, r *http.Request) {
-		// Use the global TracerProvider
-		tr := otel.Tracer("hello-handler")
-		_, span := tr.Start(ctx, "hello")
-		span.SetAttributes(attribute.Key("mykey").String("value"))
-		defer span.End()
-
-		yourName := os.Getenv("MY_NAME")
-		fmt.Fprintf(w, "Hello %q!", yourName)
-	}
-
-	otelHandler := otelhttp.NewHandler(http.HandlerFunc(helloHandler), "Hello")
-
-	server.mux.Handle("/trace", otelHandler)
 
 	log.Fatal(http.ListenAndServe(":8080", server.mux))
 }
