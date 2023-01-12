@@ -15,6 +15,8 @@ WORKDIR /usr/src/backend
 
 # RUN go build -o backend
 
+COPY backend /usr/src/backend/backend
+
 EXPOSE 8080
 
 # ENV DATABASE_URL="postgresql://postgres:postgres@db:5432"
