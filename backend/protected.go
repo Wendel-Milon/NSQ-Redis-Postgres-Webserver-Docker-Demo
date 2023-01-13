@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	"go.opentelemetry.io/otel/propagation"
 )
 
 func (server *Server) ValidateSession(next http.Handler) http.Handler {
@@ -57,10 +60,26 @@ func (server *Server) ProduceToNSQGET(w http.ResponseWriter, r *http.Request) {
 
 func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 
-	//TODO enable selection of topic and message
-	message := "default message"
+	ctx, span := server.tp.Tracer("NSQ-Producer").Start(context.Background(), "Start")
+	defer span.End()
 
-	err := server.nsq.Publish("default", []byte(message))
+	// https://stackoverflow.com/questions/71895937/manually-extracting-opentelemetry-context-from-golang-into-a-string
+	carrier := propagation.MapCarrier{}
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+	propagator.Inject(ctx, carrier)
+
+	fmt.Println(carrier)
+
+	message, err := json.Marshal(carrier)
+	if err != nil {
+		log.Println(err)
+	}
+
+	//TODO enable selection of topic and message
+	// message := "default message"
+
+	// err := server.nsq.Publish("default", []byte(message))
+	err = server.nsq.Publish("default", message)
 	if err != nil {
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		log.Println("Error when producing message", err)

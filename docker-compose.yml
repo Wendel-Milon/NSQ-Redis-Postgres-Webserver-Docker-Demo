@@ -80,8 +80,9 @@ services:
             - NSQ_LOOKUP=nsqlookupd
             - NSQ_TOPIC=default
             - NSQ_CHAN=links
+            - JAEGER_URL=jaegertracing:14268
         deploy:
-            replicas: 2
+            replicas: 1
 
     # Same as _links but different Channel
     nsqconsumer_rechts:
@@ -97,8 +98,9 @@ services:
             - NSQ_LOOKUP=nsqlookupd
             - NSQ_TOPIC=default
             - NSQ_CHAN=rechts
+            - JAEGER_URL=jaegertracing:14268
         deploy:
-            replicas: 2
+            replicas: 1
 
     tracingapp:
         build: ./tracingApp
