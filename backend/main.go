@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v5"
+	"github.com/nats-io/nats.go"
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/sdk/trace"
@@ -31,6 +32,7 @@ var PgURL = os.Getenv("DATABASE_URL")
 var NSQD = os.Getenv("NSQ_DEMON")
 var Jaeger = os.Getenv("JAEGER_URL") //Port is 14268
 var TracingApp = os.Getenv("TRACING_URL")
+var NATS_URL = os.Getenv("NATS_URL")
 
 type Server struct {
 	redis *redis.Client
@@ -38,6 +40,7 @@ type Server struct {
 	nsq   *nsq.Producer
 	mux   *chi.Mux
 	tp    *trace.TracerProvider
+	nats  *nats.Conn
 }
 
 func (server *Server) SendError(w http.ResponseWriter, r *http.Request) {
@@ -82,6 +85,13 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 			<form action="/logout" method="post" target="dummyframe">
 				<input type="submit" name="logout" value="Logout" />
 			</form>
+
+
+			<iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
+			<form action="/nats" method="post" target="dummyframe">
+				<input type="submit" name="nats" value="nats" />
+			</form>
+
 			<br><br>
 
 
@@ -158,6 +168,14 @@ func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (server *Server) NatsPost(w http.ResponseWriter, r *http.Request) {
+	err := server.nats.Publish("foo", []byte("Some Random Text"))
+	if err != nil {
+		server.SendErrorMessage(w, r, 404, err.Error())
+	}
+	// log.Println("Received POST!")
+}
+
 func (server *Server) Shutdown(context.Context) error {
 
 	err := server.pg.Close(context.Background())
@@ -186,7 +204,7 @@ func AttachAllPaths(server *Server) {
 	// Prometheus Metrics
 	server.mux.Use(promiddleWare)
 	// All Routes are addded a span to track down requests.
-	server.mux.Use(tracing)
+	// server.mux.Use(tracing)
 
 	// Machtes Everything not matched somewhere else
 	server.mux.Get("/", server.FrontPageHTML)
@@ -211,6 +229,8 @@ func AttachAllPaths(server *Server) {
 	server.mux.Get("/login", server.LoginUserGET)
 	server.mux.Post("/login", server.LoginUserPOST)
 	server.mux.Post("/logout", server.LogoutUserPOST)
+
+	server.mux.Post("/nats", server.NatsPost)
 
 	// Makes it far easier to protect all underlying Handlers
 	protectedRouter := chi.NewRouter()

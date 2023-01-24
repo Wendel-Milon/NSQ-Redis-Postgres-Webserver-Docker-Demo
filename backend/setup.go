@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v9"
 	"github.com/jackc/pgx/v5"
+	"github.com/nats-io/nats.go"
 	"github.com/nsqio/go-nsq"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -54,6 +55,20 @@ func SetupServer() (*Server, error) {
 		return nil, err
 	}
 
+	/************************ NATs *********************************/
+	// var conn_string string
+
+	// if NATS_URL == "" {
+	// 	conn_string = nats.DefaultURL
+	// } else {
+	// 	conn_string = fmt.Sprintf("%s:4222", NATS_URL)
+	// }
+	fmt.Println("Vars", NATS_URL)
+	nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
+	if err != nil {
+		return nil, err
+	}
+
 	/************************** Chi MUX *********************************/
 
 	mux := CreateRouter()
@@ -66,6 +81,7 @@ func SetupServer() (*Server, error) {
 		nsq:   nsq,
 		mux:   mux,
 		tp:    tracer,
+		nats:  nc,
 	}
 
 	// Register our TracerProvider as the global so any imported

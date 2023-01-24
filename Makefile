@@ -19,6 +19,7 @@ build:
 	cd nsqconsumer; go build -o nsqconsumer .
 	cd backend; go build -o backend .
 	cd tracingApp; go build -o tracingapp .
+	cd natsconsumer;CGO_ENABLED=0 go build -o natsconsumer . 
 
 # Starting a container which will be deleted after exit:
 # run:
@@ -38,6 +39,7 @@ clean:
 	cd nsqconsumer; rm nsqconsumer
 	cd backend; rm backend
 	cd tracingApp; rm tracingapp
+	cd natsconsumer; rm natsconsumer
 
 
 superclean: clean
@@ -45,9 +47,11 @@ superclean: clean
 	docker rmi codingchallengehans-tracingapp:latest
 	docker rmi codingchallengehans-nsqconsumer_links:latest
 	docker rmi codingchallengehans-nsqconsumer_rechts:latest
+	docker rmi codingchallengehans-natsconsumer:latest
 
 	docker volume rm codingchallengehans_cache
 	docker volume rm codingchallengehans_db
+	docker volume rm codingchallengehans_prometheus_data
 
 
 
