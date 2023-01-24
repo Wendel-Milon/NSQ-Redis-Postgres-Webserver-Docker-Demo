@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis/v9"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -36,7 +36,7 @@ var NATS_URL = os.Getenv("NATS_URL")
 
 type Server struct {
 	redis *redis.Client
-	pg    *pgx.Conn
+	pg    *pgxpool.Pool
 	nsq   *nsq.Producer
 	mux   *chi.Mux
 	tp    *trace.TracerProvider
@@ -178,11 +178,9 @@ func (server *Server) NatsPost(w http.ResponseWriter, r *http.Request) {
 
 func (server *Server) Shutdown(context.Context) error {
 
-	err := server.pg.Close(context.Background())
-	if err != nil {
-		return err
-	}
-	err = server.redis.Close()
+	server.pg.Close()
+
+	err := server.redis.Close()
 	if err != nil {
 		return err
 	}

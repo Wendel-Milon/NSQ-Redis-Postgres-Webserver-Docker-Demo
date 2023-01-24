@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-redis/redis/v9"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nsqio/go-nsq"
 	"go.opentelemetry.io/otel"
@@ -117,8 +117,8 @@ func ConnectRedis() (*redis.Client, error) {
 	return rdb, nil
 }
 
-func ConnectPostgre() (*pgx.Conn, error) {
-	conn, err := pgx.Connect(context.Background(), PgURL)
+func ConnectPostgre() (*pgxpool.Pool, error) {
+	conn, err := pgxpool.New(context.Background(), PgURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
