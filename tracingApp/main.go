@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/jaeger"
@@ -80,6 +81,7 @@ func main() {
 		log.Println("Message received!")
 	})
 
+	http.Handle("/metrics", promhttp.Handler())
 	log.Fatal(http.ListenAndServe(":8001", nil))
 
 }

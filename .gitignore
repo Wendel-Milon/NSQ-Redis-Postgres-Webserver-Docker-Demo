@@ -6,3 +6,7 @@
 
 # Unignore all dirs
 !*/
+
+*.pb.go
+
+loadtest.js

@@ -50,14 +50,17 @@ services:
         #     delay: 3s
         #     max_attempts: 2
         #     window: 120s
-        ports: 
-            - "8080:8080"
+        
+        # Unnessary because its overwritten by docker-compose.override.yml
+        # ports: 
+        #     - "8080:8080"
         depends_on:
             - postgresDB
             - redisCache
             - nsqd
             - jaegertracing
             - nats
+            - grpcconsumer
         environment:
             - DATABASE_URL=postgres://postgres:postgres@postgresDB:5432
             - CACHE_URL=redisCache
@@ -66,6 +69,7 @@ services:
             - TRACING_URL=tracingapp:8001
             - MY_NAME=test
             - NATS_URL=nats
+            - GRPC_URL=grpcconsumer:7777
 
 
     # Simple Consumer
@@ -124,6 +128,15 @@ services:
         volumes:
           - ./natsconsumer:/usr/src/natsconsumer
 
+    # Consumes the messages produced from the backend.    
+    grpcconsumer:
+        build: ./grpcconsumer
+        environment:
+            - JAEGER_URL=jaegertracing:14268
+        ports:
+            - "7777:7777"
+        volumes:
+          - ./grpcconsumer:/usr/src/grpcconsumer
 
 
     postgresDB:
@@ -138,6 +151,13 @@ services:
             - ./db.sql:/docker-entrypoint-initdb.d/db.sql
             - db:/var/lib/postgresql/data
 
+    
+    postgres-exporter:
+        image: quay.io/prometheuscommunity/postgres-exporter
+        environment:
+            - DATA_SOURCE_NAME=postgresql://postgres:postgres@postgresDB:5432/postgres?sslmode=disable
+        ports:
+            - "9187:9187"
 
     redisCache:
         image: redis:4.0-alpine

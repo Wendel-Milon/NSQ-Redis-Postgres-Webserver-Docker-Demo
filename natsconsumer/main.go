@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -71,6 +73,12 @@ func main() {
 	// 		log.Fatal().Err(err).Msg("")
 	// 	}
 	// }
+
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		go http.ListenAndServe(":2112", nil)
+	}()
+
 	done := make(chan bool)
 	<-done
 }

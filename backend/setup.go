@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/nats-io/nats.go"
 	"github.com/nsqio/go-nsq"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/jaeger"
@@ -18,6 +19,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.7.0"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -54,20 +57,27 @@ func SetupServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Successfully setup Tracing Provider")
 
 	/************************ NATs *********************************/
-	// var conn_string string
 
-	// if NATS_URL == "" {
-	// 	conn_string = nats.DefaultURL
-	// } else {
-	// 	conn_string = fmt.Sprintf("%s:4222", NATS_URL)
-	// }
-	fmt.Println("Vars", NATS_URL)
 	nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
 	if err != nil {
 		return nil, err
 	}
+	log.Println("Successfully connected to Nats.io")
+
+	/************************ GRPC *********************************/
+
+	conn, err := grpc.Dial(GRPC_URL,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	log.Println("Successfully connected to GRPC")
 
 	/************************** Chi MUX *********************************/
 
@@ -82,6 +92,7 @@ func SetupServer() (*Server, error) {
 		mux:   mux,
 		tp:    tracer,
 		nats:  nc,
+		grpc:  conn,
 	}
 
 	// Register our TracerProvider as the global so any imported

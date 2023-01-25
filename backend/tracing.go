@@ -10,15 +10,14 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 // tracing simply wraps the default provided tracing Handlers to be able to use as middleware.
-func tracing(h http.Handler) http.Handler {
-	return otelhttp.NewHandler(h, "", otelhttp.WithPublicEndpoint())
-}
+// func tracing(h http.Handler) http.Handler {
+// 	return otelhttp.NewHandler(h, "", otelhttp.WithPublicEndpoint())
+// }
 
 // SpecialTracing create a additional tracing for this Path. Allows for more custom stuff.
 func (server *Server) SpecialTracing(w http.ResponseWriter, r *http.Request) {

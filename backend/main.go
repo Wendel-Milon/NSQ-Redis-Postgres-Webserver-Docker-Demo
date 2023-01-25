@@ -18,6 +18,7 @@ import (
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/sdk/trace"
+	"google.golang.org/grpc"
 )
 
 // TODO:
@@ -33,6 +34,7 @@ var NSQD = os.Getenv("NSQ_DEMON")
 var Jaeger = os.Getenv("JAEGER_URL") //Port is 14268
 var TracingApp = os.Getenv("TRACING_URL")
 var NATS_URL = os.Getenv("NATS_URL")
+var GRPC_URL = os.Getenv("GRPC_URL")
 
 type Server struct {
 	redis *redis.Client
@@ -41,6 +43,7 @@ type Server struct {
 	mux   *chi.Mux
 	tp    *trace.TracerProvider
 	nats  *nats.Conn
+	grpc  *grpc.ClientConn
 }
 
 func (server *Server) SendError(w http.ResponseWriter, r *http.Request) {
@@ -86,10 +89,12 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 				<input type="submit" name="logout" value="Logout" />
 			</form>
 
-
-			<iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
 			<form action="/nats" method="post" target="dummyframe">
 				<input type="submit" name="nats" value="nats" />
+			</form>
+
+			<form action="/grpc" method="post">
+				<input type="submit" name="grpc" value="grpc" />
 			</form>
 
 			<br><br>
@@ -168,14 +173,6 @@ func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *Server) NatsPost(w http.ResponseWriter, r *http.Request) {
-	err := server.nats.Publish("foo", []byte("Some Random Text"))
-	if err != nil {
-		server.SendErrorMessage(w, r, 404, err.Error())
-	}
-	// log.Println("Received POST!")
-}
-
 func (server *Server) Shutdown(context.Context) error {
 
 	server.pg.Close()
@@ -189,6 +186,9 @@ func (server *Server) Shutdown(context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	server.nats.Close()
+	server.grpc.Close()
 
 	log.Println("Graceful shutdown successful!")
 	os.Exit(1)
@@ -229,6 +229,7 @@ func AttachAllPaths(server *Server) {
 	server.mux.Post("/logout", server.LogoutUserPOST)
 
 	server.mux.Post("/nats", server.NatsPost)
+	server.mux.Post("/grpc", server.CallGRPCPost)
 
 	// Makes it far easier to protect all underlying Handlers
 	protectedRouter := chi.NewRouter()
