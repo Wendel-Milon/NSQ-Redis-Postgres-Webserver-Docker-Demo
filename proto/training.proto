@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package proto;
+option go_package = "./proto";
+
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+
+service Trainer {
+    rpc train(stream Training) returns (Summary); 
+}
+
+message Summary {
+    string DeviceID = 1;
+    DeviceType devicetype =2;
+    google.protobuf.Duration Duration = 3;
+
+    int32 force = 4;
+    
+}
+
+
+message Training {
+    string DeviceID = 1;
+    DeviceType devicetype =5;
+    google.protobuf.Timestamp start = 2;
+    google.protobuf.Timestamp finish = 3;
+    Settings settings = 4;
+
+    string User = 7;
+    repeated Iteration iterations = 8;
+}
+
+message Settings {
+    int32 max_pos = 1;
+    int32 min_pos = 2;
+}
+
+enum DeviceType {
+    Back = 0;
+    Leg = 1;
+    Chest = 2;
+    Bizeps= 3;
+    Trizeps = 4;
+ }
+
+ message Iteration {
+    int32 pos = 1;
+    int32 force = 2;
+    int32 secs = 3;
+ }

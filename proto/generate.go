@@ -6,3 +6,4 @@ package proto
 // 		path to the file.
 //go:generate protoc -I=. --go_out=.. ./addressbook.proto
 //go:generate protoc -I=. --go_out=.. --go-grpc_out=.. ./greeter.proto
+//go:generate protoc -I=. --go_out=.. --go-grpc_out=.. ./training.proto
