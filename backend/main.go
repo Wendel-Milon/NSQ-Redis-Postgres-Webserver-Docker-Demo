@@ -36,6 +36,30 @@ var TracingApp = os.Getenv("TRACING_URL")
 var NATS_URL = os.Getenv("NATS_URL")
 var GRPC_URL = os.Getenv("GRPC_URL")
 
+func ValidateEnvVariables() {
+	if CacheURL == "" {
+		log.Fatal("CACHE_URL not set!")
+	}
+	if PgURL == "" {
+		log.Fatal("DATABASE_URL not set!")
+	}
+	if NSQD == "" {
+		log.Fatal("NSQ_DEMON not set!")
+	}
+	if Jaeger == "" {
+		log.Fatal("JAEGER_URL not set!")
+	}
+	if TracingApp == "" {
+		log.Fatal("TRACING_URL not set!")
+	}
+	if NATS_URL == "" {
+		log.Fatal("NATS_URL not set!")
+	}
+	if GRPC_URL == "" {
+		log.Fatal("GRPC_URL not set!")
+	}
+}
+
 type Server struct {
 	redis *redis.Client
 	pg    *pgxpool.Pool
@@ -57,60 +81,6 @@ func (server *Server) SendErrorMessage(w http.ResponseWriter, r *http.Request, c
 }
 
 func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
-	html := `
-			<h1>Hello World</h1>
-
-			<a href="/login">
-				<button>Login</button>
-			</a>
-
-			<a href="/create">
-				<button>CreateUser</button>
-			</a>
-
-			<a href="/protected">
-				<button>Visit Protected Page</button>
-			</a>
-
-			<a href="/metrics">
-				<button>Prometheus metrics</button>
-			</a>
-
-			<a href="/JSON">
-				<button>Sample JSON Page</button>
-			</a>
-
-			<a href="/trace">
-				<button>Create a Trace</button>
-			</a>
-
-			<iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
-			<form action="/logout" method="post" target="dummyframe">
-				<input type="submit" name="logout" value="Logout" />
-			</form>
-
-			<form action="/nats" method="post" target="dummyframe">
-				<input type="submit" name="nats" value="nats" />
-			</form>
-
-			<form action="/grpc" method="post">
-				<input type="submit" name="grpc" value="grpc" />
-			</form>
-
-			<br><br>
-
-
-			<p> This forms does nothing.</p>	
-			<form action="/form" method="post">
-				<label for="fname">First name:</label><br>
-				<input type="text" id="fname" name="fname"><br>
-				<label for="lname">Last name:</label><br>
-				<input type="text" id="lname" name="lname">
-				<input type="submit" value="Submit">
-		  	</form> 
-		  
-		  `
-
 	// The order in which to call these 3 is:
 	//		1. Set Header
 	//		2. WriteHeader
@@ -122,8 +92,12 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 
-	_, err := w.Write([]byte(html))
-
+	html, err := os.ReadFile("./static/frontpage.html")
+	if err != nil {
+		server.SendError(w, r)
+		return
+	}
+	_, err = w.Write(html)
 	if err != nil {
 		server.SendError(w, r)
 		return
@@ -204,6 +178,8 @@ func AttachAllPaths(server *Server) {
 	// All Routes are addded a span to track down requests.
 	// server.mux.Use(tracing)
 
+	server.mux.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static"))))
+
 	// Machtes Everything not matched somewhere else
 	server.mux.Get("/", server.FrontPageHTML)
 	server.mux.Post("/form", server.ProcessForm)
@@ -233,7 +209,6 @@ func AttachAllPaths(server *Server) {
 
 	// Makes it far easier to protect all underlying Handlers
 	protectedRouter := chi.NewRouter()
-
 	protectedRouter.Use(server.ValidateSession)
 	protectedRouter.Get("/", server.ProduceToNSQGET)
 	protectedRouter.Post("/", server.ProduceToNSQPOST)
@@ -244,6 +219,8 @@ func AttachAllPaths(server *Server) {
 }
 
 func main() {
+
+	ValidateEnvVariables()
 
 	server, err := SetupServer()
 	if err != nil {

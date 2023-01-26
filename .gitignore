@@ -10,3 +10,5 @@
 *.pb.go
 
 loadtest.js
+
+*.pem

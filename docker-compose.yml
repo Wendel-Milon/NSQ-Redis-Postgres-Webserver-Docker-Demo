@@ -71,6 +71,12 @@ services:
             - NATS_URL=nats
             - GRPC_URL=grpcconsumer:7777
 
+        labels:
+            - "traefik.enable=true"
+            - "traefik.http.routers.gobackend.rule=Host(`randompage.local`)"
+            - "traefik.http.routers.gobackend.entrypoints=web"
+
+
 
     # Simple Consumer
     nsqconsumer_links:
@@ -199,6 +205,24 @@ services:
         ports:
             - "4222:4222"
             - "8222:8222"
+
+
+    traefik:
+        image: "traefik:v2.9"
+        command:
+        #- "--log.level=DEBUG"
+        - "--api.insecure=true"
+        - "--providers.docker=true"
+        - "--providers.docker.exposedbydefault=false"
+        - "--entrypoints.web.address=:80"
+        - "--entrypoints.web2.address=:443"
+        # - "--providers.file.directory=/etc/traefik/dynamic"
+        ports:
+        - "80:80"
+        - "8088:8080"
+        volumes:
+        - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
 
 volumes:
     db:

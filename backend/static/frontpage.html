@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>A Meaningful Page Title</title>
+
+
+    <style>
+        table,
+        th,
+        td {
+            border: 1px solid;
+            text-align: center;
+            padding: 5px;
+            /* margin: 6px; */
+        }
+
+        ul {
+            /* width: 400px; */
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1 align="center">Hello World</h1>
+    <div align="center">
+        <table>
+            <tr>
+                <th>Button</th>
+                <th>Explanation</th>
+            </tr>
+
+            <tr>
+                <td><a href="/create"><button>CreateUser</button></a> </td>
+                <td>Lets you create a user! Users are stored within a Postgres Database. Passwords are encoded via
+                    bcyrpt.
+                </td>
+            </tr>
+
+            <tr>
+                <td><a href="/login"><button>Login</button></a></td>
+                <td>Logs you into the system! A successful login rewards you with a temporary session cookie. <br>
+                    Session cookies are stored in Redis. All protected routes can only be accesses via cookie.
+                </td>
+            </tr>
+
+            <tr>
+                <td> <a href="/protected">
+                        <button>Visit Protected Page</button>
+                    </a> </td>
+                <td>Redirects you to a page, which is only accessible if you are logd in. The provided button create a
+                    message to some <a href="http://localhost:4171">NSQ consumers</a><br>
+                    These listen on the same topic but different channels.</td>
+            </tr>
+
+            <tr>
+                <td> <a href="/metrics">
+                        <button>Prometheus metrics</button>
+                    </a> </td>
+                <td> Redirects you to the local Prometheus Metrics Page.<br>
+                    <a href="http://localhost:9090">Prometheus instance</a> Visit /targets to monitor specific services.
+                </td>
+            </tr>
+
+            <tr>
+                <td><a href="/JSON">
+                        <button>Sample JSON Page</button>
+                    </a> </td>
+                <td> Display a JSON. Only exists from testing application types.</td>
+            </tr>
+
+            <tr>
+                <td> <a href="/trace">
+                        <button>Create a Trace</button>
+                    </a>
+                </td>
+                <td> Create a Trace, which can be observed <a href="http://localhost:16686">Jaeger instance</a> here.
+                    <br> Other services create traces too. GRPC uses the default grpc propagator. NSQ uses text
+                    propagator.
+                    <br>TracingApp uses http/cookie propagator.
+                </td>
+            </tr>
+
+            <tr>
+                <td> <iframe name="dummyframe" id="dummyframe" style="display: none;"></iframe>
+                    <form action="/logout" method="post" target="dummyframe">
+                        <input type="submit" name="logout" value="Logout" />
+                    </form>
+                </td>
+                <td> Logs you out </td>
+            </tr>
+
+            <tr>
+                <td>
+                    <form action="/nats" method="post" target="dummyframe">
+                        <input type="submit" name="nats" value="nats" />
+                    </form>
+                </td>
+                <td> Publishes a message to some subscribers via <a href="http://localhost:8222">Nats.IO</a></td>
+            </tr>
+
+            <tr>
+                <td>
+                    <form action="/grpc" method="post">
+                        <input type="submit" name="grpc" value="grpc" />
+                    </form>
+                </td>
+                <td>Publishes a message to a GRPC server</td>
+            </tr>
+            <tr>
+                <td></td>
+                <td>If you change /etc/hosts the page can also be used via randompage.local thanks to <a href="http://localhost:8088"><b>Treafik</b></a></td>
+         </tr>
+        <!-- <tr>
+            <td></td>
+            <td></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td></td>
+        </tr> -->
+        </table>
+    </div>
+
+
+
+    <div>
+        <h3>
+            <h3>A interesting Problem with NSQ</h3>
+            <ul><b>Image the following case:</b>
+                <li>Single producer producing sparingly.</li>
+                <li>Two consumer, both listening same topic but different channels</li>
+                <li>They both ask the nsqlookd periodically (~1 per min.) for the channel (The channel does not exits
+                    because no message was yet send there)</li>
+                <li>They dont ping a the exact same interval.</li>
+            </ul>
+            <ul>
+                <b>Problem:</b>
+                <li>The producer sends a message.</li>
+                <li>Consumer A pings 5 seconds later. Gets the message. Consumes it.</li>
+                <li>Consumer B pings 50 seconds later. Gets the channel. Bot *NO* message.</li>
+                <li>NSQ marked the channel as empty.</li>
+            </ul>
+            <ul>
+                <b> Result:</b>
+                <li>Inconstistent state.</li>
+                <li>No user insights into the problem.</li>
+                <li>Very hard to debug.</li>
+            </ul>
+        </h3>
+
+
+    </div>
+
+
+    <div align="center">
+        <p> This form does nothing. Except send a post Request to the Server.</p>
+        <form action="/form" method="post">
+            <label for="fname">First name:</label><br>
+            <input type="text" id="fname" name="fname"><br>
+            <label for="lname">Last name:</label><br>
+            <input type="text" id="lname" name="lname">
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+</body>

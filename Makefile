@@ -6,6 +6,8 @@ CACHE_URL=localhost
 TRACING_URL=localhost:8001
 JAEGER_URL=localhost:14268
 NSQ_DEMON=localhost
+NATS_URL=localhost
+MY_NAME=günther
 
 imagename=simpleservergo
 imageversion=v1

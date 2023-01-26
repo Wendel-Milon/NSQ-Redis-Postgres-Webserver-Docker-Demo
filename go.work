@@ -2,9 +2,10 @@ go 1.19
 
 use (
 	./backend
+	./grpcconsumer
 	./natsconsumer
 	./nsqconsumer
-	./tracingApp
 	./proto
-	./grpcconsumer
+	./repproducer
+	./tracingApp
 )
