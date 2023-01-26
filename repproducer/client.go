@@ -62,3 +62,51 @@ func (c Client) doTrain() error {
 	// log.Println("Client side Sum:", sum)
 	return nil
 }
+
+func (c Client) fullRandom() error {
+	var serverSum int32
+	var serverMessages int32
+
+	stream, err := c.tc.FullRandom(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				fr, err := stream.Recv()
+				if err != nil {
+					return
+				}
+				serverSum = serverSum + fr.A + fr.B + fr.C
+				serverMessages++
+			}
+
+		}
+	}()
+raus:
+	for {
+		select {
+		case <-ctx.Done():
+			break raus
+		default:
+			fr := &proto.Nums{
+				A: rand.Int31n(100),
+				B: rand.Int31n(100),
+				C: rand.Int31n(100),
+			}
+			err := stream.Send(fr)
+			if err != nil {
+				return nil
+			}
+		}
+	}
+
+	defer log.Println("Client says: serverSum =", serverSum, "with ", serverMessages, "messages.")
+	return nil
+}

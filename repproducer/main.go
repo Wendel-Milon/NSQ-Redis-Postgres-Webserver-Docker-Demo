@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"os"
 	"proto"
 	"time"
 
@@ -15,6 +16,22 @@ func main() {
 
 	rand.Seed(time.Now().Unix())
 
+	// go ClientDoTrain()
+	go ClientFullRandom()
+
+	log.Println("Starting Server")
+	listener, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	server := grpc.NewServer()
+	protoServer := Server{min: 10000000}
+
+	proto.RegisterTrainerServer(server, &protoServer)
+	go log.Fatalln(server.Serve(listener))
+}
+
+func ClientDoTrain() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		log.Fatal(err)
@@ -25,23 +42,32 @@ func main() {
 		tc: proto.NewTrainerClient(conn),
 	}
 
-	log.Println("Starting Server")
-	listener, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalln(err)
+	time.Sleep(time.Second)
+
+	for i := 0; i < 100; i++ {
+		go client.doTrain()
 	}
-	server := grpc.NewServer()
-	protoServer := Server{min: 10000000}
+	time.Sleep(time.Second)
+}
 
-	go func() {
-		time.Sleep(time.Second)
-		for i := 0; i < 100; i++ {
-			go client.doTrain()
-		}
-		// time.Sleep(time.Second)
-		// log.Println(protoServer.max, protoServer.min)
-	}()
+func ClientFullRandom() {
+	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
 
-	proto.RegisterTrainerServer(server, &protoServer)
-	go log.Fatalln(server.Serve(listener))
+	client := Client{
+		tc: proto.NewTrainerClient(conn),
+	}
+
+	time.Sleep(time.Second)
+
+	err = client.fullRandom()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	time.Sleep(time.Second)
+	os.Exit(1)
 }

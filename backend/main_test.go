@@ -1,23 +1,41 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"testing"
 	"time"
 )
 
+func validResponse(res *http.Response, statusCode int, appType string) bool {
+	if res.StatusCode != statusCode {
+		return false
+	}
+
+	ct := res.Header.Get("Content-Type")
+
+	if ct != appType {
+		log.Println(ct, appType)
+		return false
+	}
+	return true
+}
+
 func TestFrontPage(t *testing.T) {
-	req, _ := http.NewRequest("GET", "http:localhost:8080", nil)
+	req, _ := http.NewRequest("GET", "http://localhost:8080", nil)
 
 	client := http.Client{Timeout: time.Millisecond * 500}
 
-	for i := 0; i < 1000000; i++ {
-		go t.Run("balllern", func(t *testing.T) {
-			_, err := client.Do(req)
+	for i := 0; i < 5; i++ {
+		t.Run("balllern", func(t *testing.T) {
+			res, err := client.Do(req)
 			if err != nil {
-				t.Fail()
+				t.Fatal(err)
+			}
+
+			if !validResponse(res, 200, "text/html; charset=utf-8") {
+				t.Fatal("response not Valid!")
 			}
 		})
-
 	}
 }

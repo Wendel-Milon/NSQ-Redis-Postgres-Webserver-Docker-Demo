@@ -9,7 +9,15 @@ import "google/protobuf/duration.proto";
 
 
 service Trainer {
-    rpc train(stream Training) returns (Summary); 
+    rpc train(stream Training) returns (Summary);
+    rpc fullRandom(stream nums) returns (stream nums);
+}
+
+
+message nums {
+    int32 a = 1;
+    int32 b =2;
+    int32 c= 3;
 }
 
 message Summary {

@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"log"
+	"math/rand"
 	"proto"
 	"sync"
 	"time"
@@ -59,4 +62,49 @@ func (s *Server) Train(t proto.Trainer_TrainServer) error {
 
 		// log.Printf("%+v\n", training)
 	}
+}
+
+func (s *Server) FullRandom(t proto.Trainer_FullRandomServer) error {
+	var clientSum int32
+	var clientMessages int32
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				fr, err := t.Recv()
+				// fmt.Printf("*")
+				if err != nil {
+					return
+				}
+				clientSum = clientSum + fr.A + fr.B + fr.C
+				clientMessages++
+			}
+
+		}
+	}()
+raus:
+	for {
+		select {
+		case <-ctx.Done():
+			break raus
+		default:
+			fr := &proto.Nums{
+				A: rand.Int31n(100),
+				B: rand.Int31n(100),
+				C: rand.Int31n(100),
+			}
+			err := t.Send(fr)
+			if err != nil {
+				return nil
+			}
+		}
+	}
+
+	log.Println("Server says: clientSum =", clientSum, "with ", clientMessages, "messages.")
+	return nil
 }
