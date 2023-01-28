@@ -1,13 +1,16 @@
-# Ignore all
+# Ignore all 
 *
+
 
 # Unignore all with extensions
 !*.*
+# Unignore special case Dockerfiles
+!Dockerfile
 
 # Unignore all dirs
 !*/
 
-*.pb.go
+# *.pb.go
 
 loadtest.js
 
