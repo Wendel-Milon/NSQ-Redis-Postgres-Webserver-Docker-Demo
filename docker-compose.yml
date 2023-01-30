@@ -10,7 +10,6 @@ services:
             - "4160:4160"
             - "4161:4161"
 
-
     # So if doing a final deploy change the command, command out ports and network modes.
     # When running in "network_mode: host" everytjhing is available via localhost.
     # This is needed because how nsqd and lookup interact. The lookup returns the docker internal IP.
@@ -29,7 +28,6 @@ services:
         # deploy:
         #     replicas: 1
 
-
     nsqadmin:
         image: nsqio/nsq
         command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
@@ -39,7 +37,6 @@ services:
         ports:
             - "4171:4171"
         # network_mode: host
-
 
     gobackend:
         build: ./backend
@@ -75,8 +72,6 @@ services:
             - "traefik.enable=true"
             - "traefik.http.routers.gobackend.rule=Host(`randompage.local`)"
             - "traefik.http.routers.gobackend.entrypoints=web"
-
-
 
     # Simple Consumer
     nsqconsumer_links:
@@ -144,7 +139,6 @@ services:
         volumes:
           - ./grpcconsumer:/usr/src/grpcconsumer
 
-
     postgresDB:
         image: postgres:15.1-alpine
         restart: always
@@ -156,8 +150,7 @@ services:
         volumes:
             - ./db.sql:/docker-entrypoint-initdb.d/db.sql
             - db:/var/lib/postgresql/data
-
-    
+  
     postgres-exporter:
         image: quay.io/prometheuscommunity/postgres-exporter
         environment:
@@ -174,7 +167,6 @@ services:
         volumes: 
             - cache:/data
 
-
     prometheus:
         image: prom/prometheus:latest
         ports:
@@ -185,6 +177,38 @@ services:
 
         depends_on:
             - gobackend
+
+    #TODO still needs manual connection to Prometheus
+    grafana:
+        image: grafana/grafana:latest
+        # user: "472"
+        depends_on:
+            - prometheus
+        ports:
+        - 3000:3000
+        volumes:
+        - grafana_data:/var/lib/grafana
+        # - ./grafana/provisioning/:/etc/grafana/provisioning/
+        # env_file:
+        # - ./grafana/config.monitoring
+
+
+    # Dont know why but it works with the defaults and not with custom ConfigFile.
+    loki:
+        image: grafana/loki:2.7.0
+        ports:
+        - "3100:3100"
+        # command: "-config.file=/etc/loki/config.yaml -target=read"
+        # volumes:
+        # - ./loki-config.yaml:/etc/loki/config.yaml
+
+
+    promtail:
+        image: grafana/promtail:2.7.0
+        volumes:
+        - ./promtail-local-config.yaml:/etc/promtail/config.yaml:ro
+        - /var/run/docker.sock:/var/run/docker.sock
+        command: -config.file=/etc/promtail/config.yaml
 
     jaegertracing:
         image: jaegertracing/all-in-one:latest
@@ -199,13 +223,11 @@ services:
         environment:
             - COLLECTOR_ZIPKIN_HTTP_PORT=9411
 
-
     nats:
         image: nats:latest
         ports:
             - "4222:4222"
             - "8222:8222"
-
 
     traefik:
         image: "traefik:v2.9"
@@ -223,11 +245,12 @@ services:
         volumes:
         - "/var/run/docker.sock:/var/run/docker.sock:ro"
 
-
 volumes:
     db:
         driver: local
     cache:
         driver: local
     prometheus_data:
+        driver: local
+    grafana_data:
         driver: local
