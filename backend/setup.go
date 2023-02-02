@@ -3,7 +3,12 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -35,6 +40,7 @@ func SetupServer() (*Server, error) {
 
 	rdb, err := ConnectRedis()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
 
@@ -42,6 +48,7 @@ func SetupServer() (*Server, error) {
 
 	pgconn, err := ConnectPostgre()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
 
@@ -49,23 +56,26 @@ func SetupServer() (*Server, error) {
 
 	nsq, err := ConnectNSQ()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
 
 	/************************ TRACING *********************************/
 	tracer, err := SetupTracerProvider()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
-	log.Println("Successfully setup Tracing Provider")
+	log.Info().Msgf("Successfully setup Tracing Provider")
 
 	/************************ NATs *********************************/
 
 	nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
-	log.Println("Successfully connected to Nats.io")
+	log.Info().Msgf("Successfully connected to Nats.io")
 
 	/************************ GRPC *********************************/
 
@@ -75,9 +85,10 @@ func SetupServer() (*Server, error) {
 		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 	)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
-	log.Println("Successfully connected to GRPC")
+	log.Info().Msgf("Successfully connected to GRPC")
 
 	/************************** Chi MUX *********************************/
 
@@ -121,10 +132,11 @@ func ConnectRedis() (*redis.Client, error) {
 	}
 	err = rdb.Del(context.Background(), "TEST").Err()
 	if err != nil {
+
 		return nil, fmt.Errorf("unable to delete the redis key: %v", err)
 	}
 
-	log.Println("Successfully connected to Redis")
+	log.Info().Msgf("Successfully connected to Redis")
 	return rdb, nil
 }
 
@@ -134,7 +146,7 @@ func ConnectPostgre() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
 
-	log.Println("Successfully connected to Postgres")
+	log.Info().Msgf("Successfully connected to Postgres")
 
 	return conn, nil
 }
@@ -146,7 +158,7 @@ func ConnectNSQ() (*nsq.Producer, error) {
 		return nil, fmt.Errorf("unable to connect to NSQ Demon %v", err)
 	}
 
-	log.Println("Successfully connected to NSQDemon")
+	log.Info().Msgf("Successfully connected to NSQDemon")
 	return producer, nil
 }
 
@@ -158,10 +170,49 @@ func CreateRouter() *chi.Mux {
 	// A good base middleware stack
 	mux.Use(middleware.RequestID) // Injects a request ID into the context of each request
 	mux.Use(middleware.RealIP)    // Sets a http.Request's RemoteAddr to either X-Real-IP or X-Forwarded-For
-	mux.Use(middleware.Logger)    // Logs the start and end of each request with the elapsed processing time
+	mux.Use(ZLogHttpRequest)
+	// mux.Use(middleware.Logger)    // Logs the start and end of each request with the elapsed processing time
 	mux.Use(middleware.Recoverer) // Gracefully absorb panics and prints the stack trace
 
 	return mux
+}
+
+// TODO Switch to global logger.
+func ZLogHttpRequest(next http.Handler) http.Handler {
+	logger := zerolog.New(os.Stdout)
+	// // TODO remove in Prod
+	// logger = logger.Output(zerolog.ConsoleWriter{Out: os.Stdout})
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+
+		defer func() {
+			t := logger.With().
+				// Timestamp().
+				Str("type", r.Method).
+				Str("uri", r.RequestURI).
+				Str("ip", r.RemoteAddr).
+				Str("proto", r.Proto).
+				Int("content-length", int(r.ContentLength)).
+				Int("resp-status", ww.Status()).
+				Int("resp-size", ww.BytesWritten()).
+				Dur("duration", time.Since(start)).Logger() //TODO Better formatting.
+
+			switch {
+			case ww.Status() < 200:
+				t.Warn().Msg("")
+			case ww.Status() < 400:
+				t.Info().Msg("")
+			case ww.Status() < 500:
+				t.Warn().Msg("")
+			default:
+				t.Error().Msg("")
+			}
+		}()
+		next.ServeHTTP(ww, r)
+	})
 }
 
 // SetupTracerProvider creates the base stuff. Stolen from

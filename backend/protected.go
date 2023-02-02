@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"log"
 	"net/http"
+
+	"github.com/rs/zerolog/log"
 
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -15,19 +15,19 @@ func (server *Server) ValidateSession(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie("csrftoken")
 		if err != nil {
-			fmt.Println("Middleware Validate caught csrf-token not set", err)
+			log.Info().Msgf("Middleware Validate caught csrf-token not set", err)
 			http.Redirect(w, r, "/login", http.StatusUnauthorized)
 			return
 		}
 
 		_, err = server.redis.Get(context.Background(), cookie.Value).Result()
 		if err != nil {
-			fmt.Println("Middleware Validate caught csrf-token does not exist", err)
+			log.Info().Msgf("Middleware Validate caught csrf-token does not exist", err)
 			http.Redirect(w, r, "/login", http.StatusUnauthorized)
 			return
 		}
 
-		// fmt.Println("Middleware called", cookie.Value)
+		// log.Info().Msgf("Middleware called", cookie.Value)
 		next.ServeHTTP(w, r)
 	})
 }
@@ -53,6 +53,7 @@ func (server *Server) ProduceToNSQGET(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte(html))
 
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		server.SendError(w, r)
 		return
 	}
@@ -68,11 +69,11 @@ func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 	propagator.Inject(ctx, carrier)
 
-	fmt.Println(carrier)
+	// log.Info().Msgf(carrier)
 
 	message, err := json.Marshal(carrier)
 	if err != nil {
-		log.Println(err)
+		log.Info().Err(err).Msgf("")
 	}
 
 	//TODO enable selection of topic and message
@@ -82,8 +83,8 @@ func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 	err = server.nsq.Publish("default", message)
 	if err != nil {
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
-		log.Println("Error when producing message", err)
+		log.Info().Msgf("Error when producing message", err)
 		return
 	}
-	fmt.Println("Succesfully produced message")
+	log.Info().Msgf("Succesfully produced message")
 }

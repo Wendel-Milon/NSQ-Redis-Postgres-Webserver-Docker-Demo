@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/nsqio/go-nsq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -41,7 +42,7 @@ func main() {
 
 	tp, err := SetupTracerProvider()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	// Register our TracerProvider as the global so any imported
@@ -50,7 +51,7 @@ func main() {
 	// I think this is very important but I dont know why...
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	log.Println("Starting consuming for Lookup:", NSQ_LOOKUP, "; Topic:", NSQ_TOPIC, "; Channel:", "NSQ_CHAN")
+	log.Info().Msgf("Starting consuming for Lookup:", NSQ_LOOKUP, "; Topic:", NSQ_TOPIC, "; Channel:", "NSQ_CHAN")
 	ConsumeMessage()
 }
 
@@ -110,9 +111,9 @@ func (h *myMessageHandler) HandleMessage(m *nsq.Message) error {
 
 	err := json.Unmarshal(m.Body, &message)
 	if err != nil {
-		log.Println(err)
+		log.Info().Err(err).Msgf("")
 	}
-	// log.Println("Success!", message)
+	// log.Info().Msgf("Success!", message)
 
 	propgator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
 
@@ -122,8 +123,8 @@ func (h *myMessageHandler) HandleMessage(m *nsq.Message) error {
 	_, childSpan := otel.Tracer("foo").Start(parentCtx, "child-span-name")
 	defer childSpan.End()
 
-	// fmt.Println(parentCtx)
-	// fmt.Println(childSpan)
+	// log.Info().Msgf(parentCtx)
+	// log.Info().Msgf(childSpan)
 
 	// do whatever actual message processing is desired
 	n := rand.Intn(5)
@@ -145,7 +146,7 @@ func ConsumeMessage() {
 	config := nsq.NewConfig()
 	consumer, err := nsq.NewConsumer(NSQ_TOPIC, NSQ_CHAN, config)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	// Set the Handler for messages received by this Consumer. Can be called multiple times.
@@ -156,7 +157,7 @@ func ConsumeMessage() {
 	// See also ConnectToNSQD, ConnectToNSQDs, ConnectToNSQLookupds.
 	err = consumer.ConnectToNSQLookupd(fmt.Sprintf("%s:4161", NSQ_LOOKUP))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	go func() {

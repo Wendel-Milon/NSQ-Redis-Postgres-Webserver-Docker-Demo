@@ -24,13 +24,12 @@ build:
 	cd natsconsumer;CGO_ENABLED=0 go build -o natsconsumer . 
 	cd grpcconsumer;CGO_ENABLED=0 go build -o grpcconsumer . 
 
-# Starting a container which will be deleted after exit:
-# run:
-# 	# docker run --rm -p 8080:8080 ${imagename}:${imageversion}
-# 	docker compose --rm up
- 
-# docker image rm ${imagename}:${imageversion}
-
+tidy:
+	cd nsqconsumer; go mod tidy
+	cd backend; go mod tidy
+	cd tracingApp; go mod tidy
+	cd natsconsumer; go mod tidy
+	cd grpcconsumer; go mod tidy
 
 run:
 	@cd backend; go run .

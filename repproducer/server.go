@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"proto"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 type Server struct {
@@ -49,7 +49,7 @@ func (s *Server) Train(t proto.Trainer_TrainServer) error {
 				s.min = sum
 			}
 			s.mu.Unlock()
-			fmt.Printf("Device %s produced %d Force, in %s\n", deviceid, sum, last.Sub(start))
+			log.Info().Msgf("Device %s produced %d Force, in %s\n", deviceid, sum, last.Sub(start))
 			return t.SendAndClose(resp)
 		}
 
@@ -105,6 +105,6 @@ raus:
 		}
 	}
 
-	log.Println("Server says: clientSum =", clientSum, "with ", clientMessages, "messages.")
+	log.Info().Msgf("Server says: clientSum =", clientSum, "with ", clientMessages, "messages.")
 	return nil
 }

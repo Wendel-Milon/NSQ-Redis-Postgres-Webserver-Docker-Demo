@@ -1,12 +1,13 @@
 package main
 
 import (
-	"log"
 	"math/rand"
 	"net"
 	"os"
 	"proto"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -19,22 +20,22 @@ func main() {
 	// go ClientDoTrain()
 	go ClientFullRandom()
 
-	log.Println("Starting Server")
+	log.Info().Msgf("Starting Server")
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal().Err(err).Msg("")
 	}
 	server := grpc.NewServer()
 	protoServer := Server{min: 10000000}
 
 	proto.RegisterTrainerServer(server, &protoServer)
-	go log.Fatalln(server.Serve(listener))
+	go log.Fatal().Err(server.Serve(listener)).Msg("")
 }
 
 func ClientDoTrain() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 	defer conn.Close()
 
@@ -53,7 +54,7 @@ func ClientDoTrain() {
 func ClientFullRandom() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 	defer conn.Close()
 
@@ -65,7 +66,7 @@ func ClientFullRandom() {
 
 	err = client.fullRandom()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	time.Sleep(time.Second)

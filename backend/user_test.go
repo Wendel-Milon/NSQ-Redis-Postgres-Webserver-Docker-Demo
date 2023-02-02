@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"io"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
+
+	"github.com/rs/zerolog/log"
 )
 
 var server Server
@@ -15,7 +16,7 @@ var server Server
 func init() {
 	// pgconn, err := ConnectPostgre()
 	// if err != nil {
-	// 	log.Fatalln(err)
+	// 	log.Fatal().Msgln(err)
 	// }
 
 	mux := CreateRouter()
@@ -47,20 +48,20 @@ func checkResponseCode(t *testing.T, expected, actual int) {
 	}
 }
 
-func readResponse(buffer *bytes.Buffer) string {
-	bodyBytes, err := io.ReadAll(buffer)
-	if err != nil {
-		log.Fatal(err)
-	}
-	return string(bodyBytes)
-}
-
 func TestCreateUserGet(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/create", nil)
 	resp := executeRequest(req, &server)
 
 	checkResponseCode(t, http.StatusOK, resp.Code)
+}
+
+func ReadResponse(buffer *bytes.Buffer) string {
+	bodyBytes, err := io.ReadAll(buffer)
+	if err != nil {
+		log.Fatal().Err(err).Msgf("")
+	}
+	return string(bodyBytes)
 }
 
 func TestCreateUserPost(t *testing.T) {
@@ -80,7 +81,7 @@ func TestCreateUserPost(t *testing.T) {
 
 	resp = executeRequest(req, &server)
 	checkResponseCode(t, http.StatusBadRequest, resp.Code)
-	str := readResponse(resp.Body)
+	str := ReadResponse(resp.Body)
 	if str != ErrNoUserID.Error() {
 		t.Errorf("Body not correct! got: %s, want: %s", str, ErrNoUserID)
 	}
@@ -89,7 +90,7 @@ func TestCreateUserPost(t *testing.T) {
 	req.PostForm = form
 	resp = executeRequest(req, &server)
 	checkResponseCode(t, http.StatusBadRequest, resp.Code)
-	str = readResponse(resp.Body)
+	str = ReadResponse(resp.Body)
 	if str != ErrNoPassWd.Error() {
 		t.Errorf("Body not correct! got: %s, want: %s", str, ErrNoPassWd)
 	}

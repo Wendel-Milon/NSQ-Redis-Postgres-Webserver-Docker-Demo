@@ -11,7 +11,7 @@ require (
 	github.com/nats-io/nats.go v1.23.0
 	github.com/nsqio/go-nsq v1.1.0
 	github.com/prometheus/client_golang v1.14.0
-	github.com/sirupsen/logrus v1.6.0
+	github.com/rs/zerolog v1.29.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.37.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.37.0
 	go.opentelemetry.io/otel v1.11.2
@@ -33,7 +33,8 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/puddle/v2 v2.1.2 // indirect
-	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
+	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect
 	github.com/nats-io/nats-server/v2 v2.9.11 // indirect
 	github.com/nats-io/nkeys v0.3.0 // indirect

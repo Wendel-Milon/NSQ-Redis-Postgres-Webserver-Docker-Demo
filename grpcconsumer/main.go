@@ -3,14 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"proto"
 
+	"github.com/rs/zerolog/log"
+
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/jaeger"
@@ -38,7 +38,7 @@ type GrpcServer struct {
 }
 
 func (g GrpcServer) SayHello(ctx context.Context, in *proto.HelloRequest) (*proto.HelloReply, error) {
-	logrus.Info("Called from user", in.GetName())
+	log.Info().Msgf("Called from user", in.GetName())
 	_, span := otel.Tracer("hello-spn").Start(ctx, "span-name")
 	defer span.End()
 
@@ -73,19 +73,19 @@ func promMiddleware() grpc.UnaryServerInterceptor {
 	// this is called once!
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		// this is called with every request!
-		log.Println("Prometheus Middleware")
+		log.Info().Msgf("Prometheus Middleware")
 		return handler(ctx, req)
 	}
 }
 
 func logMiddleware() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-		log.Println("Logging before")
+		log.Info().Msgf("Logging before")
 
 		// Calls wanted function
 		resp, err = handler(ctx, req)
 
-		log.Println("Logging after", resp, err)
+		log.Info().Msgf("Logging after", resp, err)
 		return resp, err
 	}
 }
@@ -93,7 +93,7 @@ func main() {
 
 	tp, err := SetupTracerProvider()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 	// Register our TracerProvider as the global so any imported
 	// instrumentation in the future will default to using it.
@@ -105,7 +105,7 @@ func main() {
 
 	lis, err := net.Listen("tcp", ":7777")
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatal().Msgf("failed to listen: %v", err)
 	}
 
 	grpcServer := grpc.NewServer(

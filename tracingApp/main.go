@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"html"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
@@ -55,7 +56,7 @@ func main() {
 
 	tp, err := SetupTracerProvider()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	// Register our TracerProvider as the global so any imported
@@ -78,10 +79,10 @@ func main() {
 		time.Sleep(time.Millisecond * time.Duration(n))
 
 		fmt.Fprintf(w, "Hello, %q", html.EscapeString(r.URL.Path))
-		log.Println("Message received!")
+		log.Info().Msgf("Message received!")
 	})
 
 	http.Handle("/metrics", promhttp.Handler())
-	log.Fatal(http.ListenAndServe(":8001", nil))
+	log.Fatal().Err(http.ListenAndServe(":8001", nil)).Msg("")
 
 }

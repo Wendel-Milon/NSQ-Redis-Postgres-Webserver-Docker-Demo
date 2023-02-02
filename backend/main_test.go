@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 func validResponse(res *http.Response, statusCode int, appType string) bool {
@@ -15,7 +16,7 @@ func validResponse(res *http.Response, statusCode int, appType string) bool {
 	ct := res.Header.Get("Content-Type")
 
 	if ct != appType {
-		log.Println(ct, appType)
+		log.Printf("%s, %s", ct, appType)
 		return false
 	}
 	return true

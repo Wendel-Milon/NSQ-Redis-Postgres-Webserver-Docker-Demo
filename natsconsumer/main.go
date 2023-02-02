@@ -21,48 +21,48 @@ func main() {
 	go func() {
 		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
 		if err != nil {
-			log.Fatal().Err(err).Msg("")
+			log.Fatal().Err(err).Msgf("")
 		}
 
 		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 1).Str("Message", string(m.Data)).Msg("")
+			log.Info().Int("ID", 1).Str("Message", string(m.Data)).Msgf("")
 		})
 		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 2).Str("Message", string(m.Data)).Msg("")
+			log.Info().Int("ID", 2).Str("Message", string(m.Data)).Msgf("")
 		})
 	}()
 
 	go func() {
 		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
 		if err != nil {
-			log.Fatal().Err(err).Msg("")
+			log.Fatal().Err(err).Msgf("")
 		}
 
 		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 3).Str("Message", string(m.Data)).Msg("")
+			log.Info().Int("ID", 3).Str("Message", string(m.Data)).Msgf("")
 		})
 		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 4).Str("Message", string(m.Data)).Msg("")
+			log.Info().Int("ID", 4).Str("Message", string(m.Data)).Msgf("")
 		})
 	}()
 
 	go func() {
 		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
 		if err != nil {
-			log.Fatal().Err(err).Msg("")
+			log.Fatal().Err(err).Msgf("")
 		}
 
 		nc.QueueSubscribe("foo", "grp2", func(m *nats.Msg) {
-			log.Warn().Int("ID", 5).Str("Message", string(m.Data)).Msg("")
+			log.Warn().Int("ID", 5).Str("Message", string(m.Data)).Msgf("")
 		})
 		nc.QueueSubscribe("foo", "grp2", func(m *nats.Msg) {
-			log.Warn().Int("ID", 6).Str("Message", string(m.Data)).Msg("")
+			log.Warn().Int("ID", 6).Str("Message", string(m.Data)).Msgf("")
 		})
 	}()
 
 	// nc, err := nats.Connect(nats.DefaultURL)
 	// if err != nil {
-	// 	log.Fatal().Err(err).Msg("")
+	// 	log.Fatal().Msgf().Err(err).Msgf("")
 	// }
 
 	// time.Sleep(time.Second)
@@ -70,7 +70,7 @@ func main() {
 	// 	// Simple Publisher
 	// 	err = nc.Publish("foo.TEST", []byte(fmt.Sprintf("%d", i)))
 	// 	if err != nil {
-	// 		log.Fatal().Err(err).Msg("")
+	// 		log.Fatal().Msgf().Err(err).Msgf("")
 	// 	}
 	// }
 

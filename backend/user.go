@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -31,6 +31,7 @@ func (server *Server) CreateUserGET(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte(html))
 
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		server.SendError(w, r)
 		return
 	}
@@ -42,18 +43,21 @@ func (server *Server) CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
+		log.Warn().Err(err).Caller().Msg("CreateUserPOST")
 		return
 	}
 
 	userid, ok := r.Form["userid"]
 	if !ok {
 		server.SendErrorMessage(w, r, http.StatusBadRequest, ErrNoUserID.Error()) // Maybe just index array....
+		log.Warn().Err(err).Caller().Msg("CreateUserPOST")
 		return
 	}
 	joinedUser := strings.Join(userid, "")
 
 	passwd, ok := r.Form["passwd"]
 	if !ok {
+		log.Warn().Err(err).Caller().Msg("CreateUserPOST")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, ErrNoPassWd.Error())
 		return
 	}
@@ -63,6 +67,7 @@ func (server *Server) CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(joined), bcrypt.DefaultCost)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("CreateUserPOST")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -71,11 +76,12 @@ func (server *Server) CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	_, err = server.pg.Exec(context.Background(), sql, joinedUser, hash)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("CreateUserPOST")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	log.Println("User successfully created", userid)
+	log.Info().Msgf("User successfully created", userid)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -98,6 +104,7 @@ func (server *Server) LoginUserGET(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write([]byte(html))
 
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendError(w, r)
 		return
 	}
@@ -107,12 +114,14 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	err := r.ParseForm()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	userid, ok := r.Form["userid"]
 	if !ok {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, "notOK") // Maybe just index array....
 		return
 	}
@@ -120,6 +129,7 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	passwd, ok := r.Form["passwd"]
 	if !ok {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, "notOK")
 		return
 	}
@@ -128,12 +138,14 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 	var pwhash []byte
 	err = server.pg.QueryRow(context.Background(), "select passwd FROM users where userid=$1", joinedUser).Scan(&pwhash)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	err = bcrypt.CompareHashAndPassword(pwhash, []byte(joined))
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -141,12 +153,14 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 	// Create Cookie
 	token, err := uuid.NewRandom()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	// Add to Redis
 	err = server.redis.Set(context.Background(), token.String(), token.String(), time.Minute*10).Err()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("LoginUserGET")
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -160,7 +174,7 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &cookie)
 
-	log.Println("User", joinedUser, "logged into System.")
+	log.Info().Msgf("User", joinedUser, "logged into System.")
 	http.Redirect(w, r, "/protected", http.StatusSeeOther)
 }
 
@@ -168,17 +182,18 @@ func (server *Server) LogoutUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	cookie, err := r.Cookie("csrftoken")
 	if err != nil {
-		fmt.Println("No Cookie was set. Request was useless!", err)
+		log.Warn().Err(err).Caller().Msg("LogoutUserPOST")
+		// log.Info().Msgf("No Cookie was set. Request was useless!", err)
 		return
 	}
 
 	i, err := server.redis.Del(context.Background(), cookie.Value).Result()
 	if err != nil {
-		fmt.Println("Deleting the cookie returned an error!", err, cookie, i)
+		log.Warn().Err(err).Caller().Msg("LogoutUserPOST")
 		// http.Redirect(w, r, "/login", http.StatusUnauthorized)
 		return
 	}
-	fmt.Println("Deletion of the cookie was successful!", cookie, i)
+	log.Info().Msgf("Deletion of the cookie was successful!", cookie, i)
 	// Return Cookie
 	newCookie := http.Cookie{
 		Name:  "csrftoken",

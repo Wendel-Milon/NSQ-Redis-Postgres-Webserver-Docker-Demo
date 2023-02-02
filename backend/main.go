@@ -3,13 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis/v9"
@@ -38,25 +39,25 @@ var GRPC_URL = os.Getenv("GRPC_URL")
 
 func ValidateEnvVariables() {
 	if CacheURL == "" {
-		log.Fatal("CACHE_URL not set!")
+		log.Fatal().Msgf("CACHE_URL not set!")
 	}
 	if PgURL == "" {
-		log.Fatal("DATABASE_URL not set!")
+		log.Fatal().Msgf("DATABASE_URL not set!")
 	}
 	if NSQD == "" {
-		log.Fatal("NSQ_DEMON not set!")
+		log.Fatal().Msgf("NSQ_DEMON not set!")
 	}
 	if Jaeger == "" {
-		log.Fatal("JAEGER_URL not set!")
+		log.Fatal().Msgf("JAEGER_URL not set!")
 	}
 	if TracingApp == "" {
-		log.Fatal("TRACING_URL not set!")
+		log.Fatal().Msgf("TRACING_URL not set!")
 	}
 	if NATS_URL == "" {
-		log.Fatal("NATS_URL not set!")
+		log.Fatal().Msgf("NATS_URL not set!")
 	}
 	if GRPC_URL == "" {
-		log.Fatal("GRPC_URL not set!")
+		log.Fatal().Msgf("GRPC_URL not set!")
 	}
 }
 
@@ -95,11 +96,13 @@ func (server *Server) FrontPageHTML(w http.ResponseWriter, r *http.Request) {
 	html, err := os.ReadFile("./static/frontpage.html")
 	if err != nil {
 		server.SendError(w, r)
+		log.Warn().Err(err).Caller().Msg("")
 		return
 	}
 	_, err = w.Write(html)
 	if err != nil {
 		server.SendError(w, r)
+		log.Warn().Err(err).Caller().Msg("")
 		return
 	}
 }
@@ -108,13 +111,14 @@ func (server *Server) ProcessForm(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseForm()
 	if err != nil {
 		server.SendError(w, r)
+		log.Warn().Err(err).Caller().Msg("")
 		return
 	}
 
 	fname := r.Form["fname"]
 	lname := r.Form["lname"]
 
-	log.Println("Received POST!", fname, lname)
+	log.Info().Msgf("Received POST!", fname, lname)
 }
 
 func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
@@ -134,6 +138,7 @@ func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
 	bytes, err := json.Marshal(sth)
 	if err != nil {
 		server.SendError(w, r)
+		log.Warn().Err(err).Caller().Msg("")
 		return
 	}
 
@@ -143,6 +148,7 @@ func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(bytes)
 	if err != nil {
 		server.SendError(w, r)
+		log.Warn().Err(err).Caller().Msg("")
 		return
 	}
 }
@@ -153,18 +159,20 @@ func (server *Server) Shutdown(context.Context) error {
 
 	err := server.redis.Close()
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return err
 	}
 
 	err = server.tp.Shutdown(context.Background()) //TODO move to server
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return err
 	}
 
 	server.nats.Close()
 	server.grpc.Close()
 
-	log.Println("Graceful shutdown successful!")
+	log.Info().Msgf("Graceful shutdown successful!")
 	os.Exit(1)
 	return nil
 }
@@ -224,7 +232,7 @@ func main() {
 
 	server, err := SetupServer()
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 
 	AttachAllPaths(server)
@@ -237,7 +245,7 @@ func main() {
 
 	go func() {
 		s := <-sig
-		log.Println("received shutdown signal: ", s)
+		log.Info().Msgf("received shutdown signal: ", s)
 
 		// Shutdown signal with grace period of 30 seconds
 		shutdownCtx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Second)
@@ -246,16 +254,16 @@ func main() {
 		go func() {
 			<-shutdownCtx.Done()
 			if shutdownCtx.Err() == context.DeadlineExceeded {
-				log.Fatal("graceful shutdown timed out.. forcing exit.")
+				log.Fatal().Msgf("graceful shutdown timed out.. forcing exit.")
 			}
 		}()
 
 		// Trigger graceful shutdown
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msgf("")
 		}
 	}()
 
-	log.Fatal(http.ListenAndServe(":8080", server.mux))
+	log.Fatal().Err(http.ListenAndServe(":8080", server.mux)).Msgf("s")
 }

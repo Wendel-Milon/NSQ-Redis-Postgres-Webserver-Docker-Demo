@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"log"
 	"math/rand"
 	"proto"
 	"time"
+
+	"github.com/rs/zerolog/log"
 
 	"github.com/google/uuid"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -25,7 +26,7 @@ func (c Client) doTrain() error {
 	stream, err := c.tc.Train(context.Background())
 
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal().Err(err).Msg("")
 	}
 
 	for i := 0; i < 100; i++ {
@@ -51,15 +52,15 @@ func (c Client) doTrain() error {
 
 		err = stream.Send(&t)
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal().Err(err).Msgf("")
 		}
 	}
 
 	_, err = stream.CloseAndRecv()
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal().Err(err).Msg("")
 	}
-	// log.Println("Client side Sum:", sum)
+	// log.Info().Msgf("Client side Sum:", sum)
 	return nil
 }
 
@@ -69,7 +70,7 @@ func (c Client) fullRandom() error {
 
 	stream, err := c.tc.FullRandom(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal().Err(err).Msgf("")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -107,6 +108,6 @@ raus:
 		}
 	}
 
-	defer log.Println("Client says: serverSum =", serverSum, "with ", serverMessages, "messages.")
+	defer log.Info().Msgf("Client says: serverSum =", serverSum, "with ", serverMessages, "messages.")
 	return nil
 }

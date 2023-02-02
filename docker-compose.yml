@@ -202,7 +202,6 @@ services:
         # volumes:
         # - ./loki-config.yaml:/etc/loki/config.yaml
 
-
     promtail:
         image: grafana/promtail:2.7.0
         volumes:

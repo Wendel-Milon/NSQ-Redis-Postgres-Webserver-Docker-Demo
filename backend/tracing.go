@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -55,6 +56,7 @@ func CallOtherServer(ctx context.Context, wg *sync.WaitGroup) error {
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return fmt.Errorf("create request error: %w", err)
 	}
 
@@ -65,6 +67,7 @@ func CallOtherServer(ctx context.Context, wg *sync.WaitGroup) error {
 	client := http.Client{}
 	_, err = client.Do(req)
 	if err != nil {
+		log.Warn().Err(err).Caller().Msg("")
 		return err
 	}
 
