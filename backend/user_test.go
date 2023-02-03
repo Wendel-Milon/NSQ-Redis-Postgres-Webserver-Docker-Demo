@@ -59,7 +59,7 @@ func TestCreateUserGet(t *testing.T) {
 func ReadResponse(buffer *bytes.Buffer) string {
 	bodyBytes, err := io.ReadAll(buffer)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 	return string(bodyBytes)
 }

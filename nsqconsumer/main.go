@@ -42,7 +42,7 @@ func main() {
 
 	tp, err := SetupTracerProvider()
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 
 	// Register our TracerProvider as the global so any imported
@@ -51,7 +51,7 @@ func main() {
 	// I think this is very important but I dont know why...
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	log.Info().Msgf("Starting consuming for Lookup:", NSQ_LOOKUP, "; Topic:", NSQ_TOPIC, "; Channel:", "NSQ_CHAN")
+	log.Info().Msgf("Starting consuming for Lookup: %s; Topic: %s; Channel:", "NSQ_CHAN", NSQ_LOOKUP, NSQ_TOPIC)
 	ConsumeMessage()
 }
 
@@ -111,7 +111,7 @@ func (h *myMessageHandler) HandleMessage(m *nsq.Message) error {
 
 	err := json.Unmarshal(m.Body, &message)
 	if err != nil {
-		log.Info().Err(err).Msgf("")
+		log.Info().Err(err).Msg("")
 	}
 	// log.Info().Msgf("Success!", message)
 
@@ -146,7 +146,7 @@ func ConsumeMessage() {
 	config := nsq.NewConfig()
 	consumer, err := nsq.NewConsumer(NSQ_TOPIC, NSQ_CHAN, config)
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 
 	// Set the Handler for messages received by this Consumer. Can be called multiple times.
@@ -157,7 +157,7 @@ func ConsumeMessage() {
 	// See also ConnectToNSQD, ConnectToNSQDs, ConnectToNSQLookupds.
 	err = consumer.ConnectToNSQLookupd(fmt.Sprintf("%s:4161", NSQ_LOOKUP))
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 
 	go func() {

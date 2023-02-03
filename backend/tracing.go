@@ -57,7 +57,7 @@ func CallOtherServer(ctx context.Context, wg *sync.WaitGroup) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		log.Warn().Err(err).Caller().Msg("")
-		return fmt.Errorf("create request error: %w", err)
+		return fmt.Errorf("create request error: %v", err)
 	}
 
 	// Approach 1

@@ -12,10 +12,6 @@ export const options = {
 // Load test the protected route.
 export default function () {
   const res = http.get('http://localhost:8080', {});
-  //   cookies: {
-  //       csrftoken: "78b5a6c4-80cf-4146-b363-2c7068644bc3",
-  //   }
-  // });
   check(res, { 'status was 200': (r) => r.status == 200 });
 }
 

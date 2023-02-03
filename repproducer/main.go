@@ -20,7 +20,7 @@ func main() {
 	// go ClientDoTrain()
 	go ClientFullRandom()
 
-	log.Info().Msgf("Starting Server")
+	log.Info().Msg("Starting Server")
 	listener, err := net.Listen("tcp", ":50051")
 	if err != nil {
 		log.Fatal().Err(err).Msg("")
@@ -35,7 +35,7 @@ func main() {
 func ClientDoTrain() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 	defer conn.Close()
 
@@ -54,7 +54,7 @@ func ClientDoTrain() {
 func ClientFullRandom() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 	defer conn.Close()
 
@@ -66,7 +66,7 @@ func ClientFullRandom() {
 
 	err = client.fullRandom()
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 
 	time.Sleep(time.Second)

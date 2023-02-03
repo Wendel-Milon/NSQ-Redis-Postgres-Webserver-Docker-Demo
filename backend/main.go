@@ -39,25 +39,25 @@ var GRPC_URL = os.Getenv("GRPC_URL")
 
 func ValidateEnvVariables() {
 	if CacheURL == "" {
-		log.Fatal().Msgf("CACHE_URL not set!")
+		log.Fatal().Msg("CACHE_URL not set!")
 	}
 	if PgURL == "" {
-		log.Fatal().Msgf("DATABASE_URL not set!")
+		log.Fatal().Msg("DATABASE_URL not set!")
 	}
 	if NSQD == "" {
-		log.Fatal().Msgf("NSQ_DEMON not set!")
+		log.Fatal().Msg("NSQ_DEMON not set!")
 	}
 	if Jaeger == "" {
-		log.Fatal().Msgf("JAEGER_URL not set!")
+		log.Fatal().Msg("JAEGER_URL not set!")
 	}
 	if TracingApp == "" {
-		log.Fatal().Msgf("TRACING_URL not set!")
+		log.Fatal().Msg("TRACING_URL not set!")
 	}
 	if NATS_URL == "" {
-		log.Fatal().Msgf("NATS_URL not set!")
+		log.Fatal().Msg("NATS_URL not set!")
 	}
 	if GRPC_URL == "" {
-		log.Fatal().Msgf("GRPC_URL not set!")
+		log.Fatal().Msg("GRPC_URL not set!")
 	}
 }
 
@@ -118,7 +118,7 @@ func (server *Server) ProcessForm(w http.ResponseWriter, r *http.Request) {
 	fname := r.Form["fname"]
 	lname := r.Form["lname"]
 
-	log.Info().Msgf("Received POST!", fname, lname)
+	log.Info().Msgf("Received POST! %s, %s", fname, lname)
 }
 
 func (server *Server) JsonPage(w http.ResponseWriter, r *http.Request) {
@@ -172,7 +172,7 @@ func (server *Server) Shutdown(context.Context) error {
 	server.nats.Close()
 	server.grpc.Close()
 
-	log.Info().Msgf("Graceful shutdown successful!")
+	log.Info().Msg("Graceful shutdown successful!")
 	os.Exit(1)
 	return nil
 }
@@ -232,7 +232,7 @@ func main() {
 
 	server, err := SetupServer()
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 
 	AttachAllPaths(server)
@@ -245,7 +245,7 @@ func main() {
 
 	go func() {
 		s := <-sig
-		log.Info().Msgf("received shutdown signal: ", s)
+		log.Info().Msgf("received shutdown signal: %s", s)
 
 		// Shutdown signal with grace period of 30 seconds
 		shutdownCtx, cancelFunc := context.WithTimeout(context.Background(), 2*time.Second)
@@ -254,16 +254,16 @@ func main() {
 		go func() {
 			<-shutdownCtx.Done()
 			if shutdownCtx.Err() == context.DeadlineExceeded {
-				log.Fatal().Msgf("graceful shutdown timed out.. forcing exit.")
+				log.Fatal().Msg("graceful shutdown timed out.. forcing exit.")
 			}
 		}()
 
 		// Trigger graceful shutdown
 		err := server.Shutdown(shutdownCtx)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("")
+			log.Fatal().Err(err).Msg("")
 		}
 	}()
 
-	log.Fatal().Err(http.ListenAndServe(":8080", server.mux)).Msgf("s")
+	log.Fatal().Err(http.ListenAndServe(":8080", server.mux)).Msg("s")
 }

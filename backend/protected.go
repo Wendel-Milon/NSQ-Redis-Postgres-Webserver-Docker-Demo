@@ -15,14 +15,14 @@ func (server *Server) ValidateSession(next http.Handler) http.Handler {
 
 		cookie, err := r.Cookie("csrftoken")
 		if err != nil {
-			log.Info().Msgf("Middleware Validate caught csrf-token not set", err)
+			log.Info().Msgf("Middleware Validate caught csrf-token not set %v", err)
 			http.Redirect(w, r, "/login", http.StatusUnauthorized)
 			return
 		}
 
 		_, err = server.redis.Get(context.Background(), cookie.Value).Result()
 		if err != nil {
-			log.Info().Msgf("Middleware Validate caught csrf-token does not exist", err)
+			log.Info().Msgf("Middleware Validate caught csrf-token does not exist %v", err)
 			http.Redirect(w, r, "/login", http.StatusUnauthorized)
 			return
 		}
@@ -73,7 +73,7 @@ func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 
 	message, err := json.Marshal(carrier)
 	if err != nil {
-		log.Info().Err(err).Msgf("")
+		log.Info().Err(err).Msg("")
 	}
 
 	//TODO enable selection of topic and message
@@ -83,8 +83,8 @@ func (server *Server) ProduceToNSQPOST(w http.ResponseWriter, r *http.Request) {
 	err = server.nsq.Publish("default", message)
 	if err != nil {
 		server.SendErrorMessage(w, r, http.StatusBadRequest, err.Error())
-		log.Info().Msgf("Error when producing message", err)
+		log.Info().Msgf("Error when producing message %v", err)
 		return
 	}
-	log.Info().Msgf("Succesfully produced message")
+	log.Info().Msg("Succesfully produced message")
 }

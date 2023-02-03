@@ -66,7 +66,7 @@ func SetupServer() (*Server, error) {
 		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
-	log.Info().Msgf("Successfully setup Tracing Provider")
+	log.Info().Msg("Successfully setup Tracing Provider")
 
 	/************************ NATs *********************************/
 
@@ -75,7 +75,7 @@ func SetupServer() (*Server, error) {
 		log.Warn().Err(err).Caller().Msg("")
 		return nil, err
 	}
-	log.Info().Msgf("Successfully connected to Nats.io")
+	log.Info().Msg("Successfully connected to Nats.io")
 
 	/************************ GRPC *********************************/
 
@@ -136,7 +136,7 @@ func ConnectRedis() (*redis.Client, error) {
 		return nil, fmt.Errorf("unable to delete the redis key: %v", err)
 	}
 
-	log.Info().Msgf("Successfully connected to Redis")
+	log.Info().Msg("Successfully connected to Redis")
 	return rdb, nil
 }
 
@@ -146,7 +146,7 @@ func ConnectPostgre() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("unable to connect to database: %v", err)
 	}
 
-	log.Info().Msgf("Successfully connected to Postgres")
+	log.Info().Msg("Successfully connected to Postgres")
 
 	return conn, nil
 }

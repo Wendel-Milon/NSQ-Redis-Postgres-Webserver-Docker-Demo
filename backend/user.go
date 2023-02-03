@@ -81,7 +81,7 @@ func (server *Server) CreateUserPOST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().Msgf("User successfully created", userid)
+	log.Info().Msgf("User successfully created %s", userid)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -174,7 +174,7 @@ func (server *Server) LoginUserPOST(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &cookie)
 
-	log.Info().Msgf("User", joinedUser, "logged into System.")
+	log.Info().Msgf("User %s logged into System.", joinedUser)
 	http.Redirect(w, r, "/protected", http.StatusSeeOther)
 }
 
@@ -193,7 +193,7 @@ func (server *Server) LogoutUserPOST(w http.ResponseWriter, r *http.Request) {
 		// http.Redirect(w, r, "/login", http.StatusUnauthorized)
 		return
 	}
-	log.Info().Msgf("Deletion of the cookie was successful!", cookie, i)
+	log.Info().Msgf("Deletion of the cookie was successful! %s %d", cookie, i)
 	// Return Cookie
 	newCookie := http.Cookie{
 		Name:  "csrftoken",

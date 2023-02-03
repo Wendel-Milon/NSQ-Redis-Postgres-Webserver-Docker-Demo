@@ -38,7 +38,7 @@ type GrpcServer struct {
 }
 
 func (g GrpcServer) SayHello(ctx context.Context, in *proto.HelloRequest) (*proto.HelloReply, error) {
-	log.Info().Msgf("Called from user", in.GetName())
+	log.Info().Msgf("Called from user %s", in.GetName())
 	_, span := otel.Tracer("hello-spn").Start(ctx, "span-name")
 	defer span.End()
 
@@ -73,19 +73,19 @@ func promMiddleware() grpc.UnaryServerInterceptor {
 	// this is called once!
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
 		// this is called with every request!
-		log.Info().Msgf("Prometheus Middleware")
+		log.Info().Msg("Prometheus Middleware")
 		return handler(ctx, req)
 	}
 }
 
 func logMiddleware() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp interface{}, err error) {
-		log.Info().Msgf("Logging before")
+		log.Info().Msg("Logging before")
 
 		// Calls wanted function
 		resp, err = handler(ctx, req)
 
-		log.Info().Msgf("Logging after", resp, err)
+		log.Info().Msgf("Logging after %s %v", resp, err)
 		return resp, err
 	}
 }
@@ -93,7 +93,7 @@ func main() {
 
 	tp, err := SetupTracerProvider()
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 	// Register our TracerProvider as the global so any imported
 	// instrumentation in the future will default to using it.

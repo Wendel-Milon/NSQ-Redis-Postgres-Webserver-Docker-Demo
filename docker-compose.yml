@@ -159,7 +159,7 @@ services:
             - "9187:9187"
 
     redisCache:
-        image: redis:4.0-alpine
+        image: redis:7-alpine
         restart: always
         ports:
             - '6379:6379'
@@ -188,7 +188,7 @@ services:
         - 3000:3000
         volumes:
         - grafana_data:/var/lib/grafana
-        # - ./grafana/provisioning/:/etc/grafana/provisioning/
+        - ./grafana.yml:/etc/grafana/provisioning/datasources/datasource.yml
         # env_file:
         # - ./grafana/config.monitoring
 
@@ -198,6 +198,8 @@ services:
         image: grafana/loki:2.7.0
         ports:
         - "3100:3100"
+        depends_on:
+            - promtail
         # command: "-config.file=/etc/loki/config.yaml -target=read"
         # volumes:
         # - ./loki-config.yaml:/etc/loki/config.yaml

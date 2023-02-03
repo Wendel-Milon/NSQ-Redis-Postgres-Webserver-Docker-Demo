@@ -52,7 +52,7 @@ func (c Client) doTrain() error {
 
 		err = stream.Send(&t)
 		if err != nil {
-			log.Fatal().Err(err).Msgf("")
+			log.Fatal().Err(err).Msg("")
 		}
 	}
 
@@ -70,7 +70,7 @@ func (c Client) fullRandom() error {
 
 	stream, err := c.tc.FullRandom(context.Background())
 	if err != nil {
-		log.Fatal().Err(err).Msgf("")
+		log.Fatal().Err(err).Msg("")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
 	defer cancel()
@@ -108,6 +108,6 @@ raus:
 		}
 	}
 
-	defer log.Info().Msgf("Client says: serverSum =", serverSum, "with ", serverMessages, "messages.")
+	defer log.Info().Msgf("Client says: serverSum = %d with  %s, messages.", serverSum, serverMessages)
 	return nil
 }

@@ -18,61 +18,16 @@ func main() {
 	// Connect to a server
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
 
-	go func() {
-		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
-		if err != nil {
-			log.Fatal().Err(err).Msgf("")
-		}
+	for i := 0; i < 5; i++ {
+		MyQueueSubscribe(i, "foo", "multi")
+	}
 
-		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 1).Str("Message", string(m.Data)).Msgf("")
-		})
-		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 2).Str("Message", string(m.Data)).Msgf("")
-		})
-	}()
+	for i := 5; i < 10; i++ {
+		MyQueueSubscribe(i, "foo", "grp2")
+	}
 
-	go func() {
-		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
-		if err != nil {
-			log.Fatal().Err(err).Msgf("")
-		}
-
-		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 3).Str("Message", string(m.Data)).Msgf("")
-		})
-		nc.QueueSubscribe("foo", "multi", func(m *nats.Msg) {
-			log.Info().Int("ID", 4).Str("Message", string(m.Data)).Msgf("")
-		})
-	}()
-
-	go func() {
-		nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
-		if err != nil {
-			log.Fatal().Err(err).Msgf("")
-		}
-
-		nc.QueueSubscribe("foo", "grp2", func(m *nats.Msg) {
-			log.Warn().Int("ID", 5).Str("Message", string(m.Data)).Msgf("")
-		})
-		nc.QueueSubscribe("foo", "grp2", func(m *nats.Msg) {
-			log.Warn().Int("ID", 6).Str("Message", string(m.Data)).Msgf("")
-		})
-	}()
-
-	// nc, err := nats.Connect(nats.DefaultURL)
-	// if err != nil {
-	// 	log.Fatal().Msgf().Err(err).Msgf("")
-	// }
-
-	// time.Sleep(time.Second)
-	// for i := 0; i < 100; i++ {
-	// 	// Simple Publisher
-	// 	err = nc.Publish("foo.TEST", []byte(fmt.Sprintf("%d", i)))
-	// 	if err != nil {
-	// 		log.Fatal().Msgf().Err(err).Msgf("")
-	// 	}
-	// }
+	ReqListener(1)
+	ReqListener(2)
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
@@ -81,4 +36,30 @@ func main() {
 
 	done := make(chan bool)
 	<-done
+}
+
+func MyQueueSubscribe(id int, subj, queue string) {
+	nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
+	}
+	log.Info().Str("URL", NATS_URL).Msg("Successfully connected.")
+	nc.QueueSubscribe(subj, queue, func(m *nats.Msg) {
+		log.Info().Int("ID", id).Str("Subject", subj).Str("queue", queue).Str("Message", string(m.Data)).Msg("")
+	})
+}
+
+func ReqListener(id int) {
+	nc, err := nats.Connect(fmt.Sprintf("%s:4222", NATS_URL))
+	if err != nil {
+		log.Error().Err(err).Msg("")
+		return
+	}
+	log.Info().Str("URL", NATS_URL).Msg("Successfully connected.")
+
+	nc.Subscribe("*", func(m *nats.Msg) {
+		nc.Publish(m.Reply, []byte(fmt.Sprint(id)))
+		log.Info().Int("ID", id).Str("Subject", "*").Str("Message", string(m.Data)).Msg("")
+	})
 }
